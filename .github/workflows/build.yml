@@ -4,6 +4,12 @@ on:
   push:
   pull_request:
 
+# Runs on the same branch go one at a time, so an older run can't publish its release after a
+# newer one and become the "latest" release.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -95,4 +101,8 @@ jobs:
           fi
           # The asset keeps one name, so .../releases/latest/download/read-instead.apk always
           # points at the newest release.
-          gh release create "$TAG" read-instead.apk             --target "$GITHUB_SHA"             --title "Read Instead $TAG"             --notes "Built from $GITHUB_SHA: $(git log -1 --format=%s)"             --latest
+          gh release create "$TAG" read-instead.apk \
+            --target "$GITHUB_SHA" \
+            --title "Read Instead $TAG" \
+            --notes "Built from $GITHUB_SHA: $(git log -1 --format=%s)" \
+            --latest

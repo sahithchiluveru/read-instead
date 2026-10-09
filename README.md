@@ -46,13 +46,13 @@ GitHub Actions runs the same steps on every push. You can download the APK from 
 
 ## Releases
 
-Every push to `main` builds a release APK, signs it with the one release key, and publishes it as a [GitHub Release](https://github.com/sahithchiluveru/read-instead/releases) named `v0.1.<run number>`. Its `versionCode` is the workflow run number, so each release is newer than the last and installs over it, keeping your books and Positions. Until the signing secrets below are set, the workflow skips this and shows a "No release published" notice.
+Every push to `main` builds a release APK, signs it with the one release key, and publishes it as a [GitHub Release](https://github.com/sahithchiluveru/read-instead/releases) named `v0.1.<run number>`. Its `versionCode` is the workflow run number, so each release is newer than the last and installs over it, keeping your books and Positions. (Don't rename `.github/workflows/build.yml`: the run number would restart at 1, and Android won't install a lower `versionCode` over a higher one.) Until the signing secrets below are set, the workflow skips this and shows a "No release published" notice.
 
 ### One-time setup: the release key
 
 Android only installs an update over an existing app if both are signed with the same key. So there is one release key, made once and kept forever.
 
-1. Generate the keystore (`keytool` comes with the JDK, in `$JAVA_HOME/bin`). Choose a strong password and use it for both prompts:
+1. Generate the keystore (`keytool` comes with the JDK, in `$JAVA_HOME/bin`). It asks for one password (a PKCS12 keystore uses the same password for the store and the key); choose a strong one:
    ```sh
    keytool -genkeypair -v -keystore read-instead-release.jks -alias read-instead -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Read Instead"
    ```
@@ -62,19 +62,18 @@ Android only installs an update over an existing app if both are signed with the
    | Secret | Value |
    | --- | --- |
    | `RELEASE_KEYSTORE_BASE64` | The keystore file, base64-encoded (below) |
-   | `RELEASE_KEYSTORE_PASSWORD` | The keystore password |
+   | `RELEASE_KEYSTORE_PASSWORD` | The password |
    | `RELEASE_KEY_ALIAS` | `read-instead` |
-   | `RELEASE_KEY_PASSWORD` | The key password (the same one, unless you chose another) |
+   | `RELEASE_KEY_PASSWORD` | The same password again |
 
    To base64-encode the keystore and copy it to the clipboard:
    ```powershell
    # Windows PowerShell
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD
-ead-instead-release.jks")) | Set-Clipboard
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path read-instead-release.jks))) | Set-Clipboard
    ```
    ```sh
-   base64 -i read-instead-release.jks | pbcopy        # macOS
-   base64 -w 0 read-instead-release.jks > keystore.b64  # Linux; paste the file's contents, then delete it
+   base64 -i read-instead-release.jks | pbcopy   # macOS
+   base64 -w 0 read-instead-release.jks          # Linux: copy the printed text
    ```
    Or, with the [GitHub CLI](https://cli.github.com/) in the repo folder, skip the clipboard (Git Bash, macOS or Linux):
    ```sh

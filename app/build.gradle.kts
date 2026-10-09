@@ -23,7 +23,10 @@ if (!releaseSigned && signingSettings.values.any { it != null }) {
 
 // Every release must have a higher versionCode than the last, or Android refuses the upgrade.
 // CI passes the workflow run number.
-val appVersionCode = releaseSetting("READ_INSTEAD_VERSION_CODE")?.toInt() ?: 1
+val appVersionCode = releaseSetting("READ_INSTEAD_VERSION_CODE")?.let {
+    it.toIntOrNull()?.takeIf { code -> code > 0 }
+        ?: throw GradleException("READ_INSTEAD_VERSION_CODE must be a positive whole number, not \"$it\".")
+} ?: 1
 
 android {
     namespace = "io.github.sahithchiluveru.readinstead"
@@ -74,7 +77,7 @@ android {
 // which the TV won't install. Use the debug APK for local testing.
 if (!releaseSigned) {
     gradle.taskGraph.whenReady {
-        if (allTasks.any { it.path == ":app:packageRelease" }) {
+        if (allTasks.any { it.path == "${project.path}:packageRelease" }) {
             logger.warn("Release signing is not configured, so the release APK will be unsigned.")
         }
     }
