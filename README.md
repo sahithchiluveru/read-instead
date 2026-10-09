@@ -6,9 +6,17 @@ A two-page e-reader for a Google TV (built for a Sony Bravia 3), so the TV gets 
 
 - `app/`: Android TV shell (Kotlin). A single fullscreen WebView that loads the web reader from the APK's assets.
 - `server/`: the Phone API (Kotlin, [Ktor](https://ktor.io/)). The TV app runs it on port 8765 while it's in the foreground, and the phone opens the Phone Page from the QR code on the TV's Add books screen. It also holds the Library: book files, covers and one `library.json` store (book records, Positions, settings such as the Access Key) in the app's private storage. Neither uses Android APIs, so `./gradlew :server:test` runs its tests over real HTTP on any JVM. An open Phone Page notices when the TV app goes away and shows "TV app not reachable"; opening the bookmark while the app is closed shows Chrome's own connection error instead, since a plain-HTTP LAN page can't be cached for offline use.
-- `reader/`: the web reader. [foliate-js](https://github.com/johnfactotum/foliate-js) renders EPUBs and [pdf.js](https://mozilla.github.io/pdf.js/) renders PDFs. EPUBs are set in the bundled [Literata](https://github.com/googlefonts/literata) or [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next) fonts (OFL, from Fontsource). `npm run build` assembles `reader/dist`, and the Gradle build bundles it into the APK as `assets/reader`.
+- `reader/`: the web reader. [foliate-js](https://github.com/johnfactotum/foliate-js) renders EPUBs, [pdf.js](https://mozilla.github.io/pdf.js/) renders PDFs, and CBZ pages are plain images served one at a time by the app. EPUBs are set in the bundled [Literata](https://github.com/googlefonts/literata) or [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next) fonts (OFL, from Fontsource). `npm run build` assembles `reader/dist`, and the Gradle build bundles it into the APK as `assets/reader`.
 - `reader/fixtures/`: public-domain sample books from Project Gutenberg for trying the app on the TV (upload them from the phone). Moby-Dick was printed to a 530-page A5 PDF.
 - `docs/research/`: research notes behind the layout and page-spread decisions.
+
+## Books
+
+Upload books from the Phone Page: EPUB, PDF and CBZ.
+
+- **CBZ** (comics and manga: a ZIP of page images) opens as two-page Spreads, the cover alone, then 2–3, 4–5. Pages go in natural filename order (`page2` before `page10`), and anything that isn't a JPEG, PNG, GIF or WebP image is skipped. The first page is the Shelf cover. Volumes of a few hundred MB are fine: the TV reads one page at a time from the archive, scales down pages much larger than the screen, and keeps only the Spread on screen and the next one in memory.
+- **Right to left**: manga's Spreads read right to left, the first page on the right (→ still goes forward). Each CBZ has its own Right to left button in the Top Bar, and a book whose `ComicInfo.xml` says `<Manga>YesAndRightToLeft</Manga>` starts with it on.
+- **CBR** (RAR) isn't supported: convert it to CBZ first, with [Calibre](https://calibre-ebook.com/) or by extracting the RAR and zipping its images (rename the `.zip` to `.cbz`).
 
 ## Building
 

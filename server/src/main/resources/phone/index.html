@@ -92,7 +92,7 @@
 <section class="tab" data-tab="books" hidden>
 <section class="upload">
     <label class="pick">Upload books
-        <input type="file" multiple accept=".epub,.pdf,application/epub+zip,application/pdf">
+        <input type="file" multiple accept=".epub,.pdf,.cbz,application/epub+zip,application/pdf,application/vnd.comicbook+zip,application/x-cbz">
     </label>
     <ul class="uploads"></ul>
 </section>
@@ -193,11 +193,11 @@
     // Uploads go one file at a time, each its own request, so each gets its own progress bar.
     const picker = document.querySelector('.pick input')
     const list = document.querySelector('.uploads')
-    const supported = name => /\.(epub|pdf)$/i.test(name)
+    const supported = name => /\.(epub|pdf|cbz)$/i.test(name)
     const messages = {
         added: book => book.unreadable ? "Added, but the TV couldn't open this book" : 'Added to your shelf',
         duplicate: () => 'Already on your shelf',
-        unsupported: () => 'Only EPUB and PDF are supported',
+        unsupported: () => 'Only EPUB, PDF and CBZ are supported',
     }
     let queue = Promise.resolve()
 
@@ -277,7 +277,8 @@
             list.prepend(row)
             if (!supported(file.name)) {
                 row.querySelector('progress').remove()
-                row.querySelector('.result').textContent = messages.unsupported()
+                row.querySelector('.result').textContent = /\.cbr$/i.test(file.name)
+                    ? "CBR isn't supported: convert it to CBZ with Calibre" : messages.unsupported()
                 row.classList.add('failed')
                 continue
             }

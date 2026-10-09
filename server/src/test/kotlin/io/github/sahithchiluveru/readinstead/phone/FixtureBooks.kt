@@ -82,19 +82,60 @@ object FixtureBooks {
     fun obfuscatedFontEpub() = epub(title = "Fancy Fonts", encryption =
         encryptionXml("http://www.idpf.org/2008/embedding", "OEBPS/fonts/font.otf"))
 
+    /** A comic page's stand-in "image": just its name, so tests can tell which page they got. */
+    fun pageImage(name: String) = "image of $name".toByteArray()
+
+    /**
+     * A CBZ: a plain ZIP of [entries] (path to contents), in archive order. A path ending in
+     * `/` is a folder. With [manga], a ComicInfo.xml whose `<Manga>` is that value, and
+     * [title] and [writer] go in it too.
+     */
+    fun cbz(
+        entries: List<Pair<String, ByteArray>>,
+        title: String? = null,
+        writer: String? = null,
+        manga: String? = null,
+    ): ByteArray {
+        val comicInfo = if (title != null || writer != null || manga != null) """<?xml version="1.0"?>
+<ComicInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  ${title?.let { "<Title>$it</Title>" } ?: ""}
+  ${writer?.let { "<Writer>$it</Writer>" } ?: ""}
+  ${manga?.let { "<Manga>$it</Manga>" } ?: ""}
+</ComicInfo>""" else null
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            comicInfo?.let {
+                zip.putNextEntry(entry("ComicInfo.xml"))
+                zip.write(it.toByteArray())
+            }
+            for ((path, content) in entries) {
+                zip.putNextEntry(entry(path))
+                zip.write(content)
+            }
+        }
+        return out.toByteArray()
+    }
+
+    /** A CBZ of page images named [names], each holding [pageImage] of its name. */
+    fun cbzOf(vararg names: String, title: String? = null, writer: String? = null, manga: String? = null) =
+        cbz(names.map { it to pageImage(it) }, title, writer, manga)
+
+    /** A ZIP entry with a fixed timestamp, so the same fixture built twice is the same book. */
+    private fun entry(path: String) = ZipEntry(path).apply { time = 0 }
+
     /** The mimetype entry first and stored, as the EPUB container format asks. */
     private fun zip(entries: Map<String, ByteArray>): ByteArray {
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
             val mimetype = "application/epub+zip".toByteArray()
-            zip.putNextEntry(ZipEntry("mimetype").apply {
+            zip.putNextEntry(entry("mimetype").apply {
                 method = ZipEntry.STORED
                 size = mimetype.size.toLong()
                 crc = CRC32().apply { update(mimetype) }.value
             })
             zip.write(mimetype)
             for ((path, content) in entries) {
-                zip.putNextEntry(ZipEntry(path))
+                zip.putNextEntry(entry(path))
                 zip.write(content)
             }
         }

@@ -20,20 +20,32 @@ const types = {
 const viewport = { width: 960, height: 540 }
 
 // Plays the TV's Library: books are { id: Buffer } served at /books/<id>, covers are
-// { id: string } (SVG) served at /covers/<id>, where the Android shell serves them.
+// { id: string } (SVG) served at /covers/<id>, where the Android shell serves them. A CBZ
+// is { pages: [string (SVG)] } instead: like the Android shell, its page list is served at
+// /books/<id>/pages and each page at /books/<id>/pages/<n> (from 1), never the whole file.
+// requests lists the path of every book request, in order.
 export const startReader = async (books, covers = {}) => {
     // Each test file builds its own copy, so parallel test files don't race on dist/.
     const dist = await mkdtemp(join(tmpdir(), 'read-instead-reader-'))
     execFileSync(process.execPath, [join(root, 'scripts/build.mjs'), dist])
+    const requests = []
+    const comicResponse = (comic, rest) => {
+        if (rest === '/pages') return [JSON.stringify(comic.pages.map((_, i) => `page${i + 1}.svg`)), types['.json']]
+        const n = Number(rest.match(/^\/pages\/(\d+)$/)?.[1])
+        return [comic.pages[n - 1], types['.svg']]
+    }
     const server = createServer(async (req, res) => {
         const path = decodeURIComponent(new URL(req.url, 'http://x').pathname)
-        const [, collection, id] = path.match(/^\/(books|covers)\/([^/]+)$/) ?? []
+        const [, collection, id, rest = ''] = path.match(/^\/(books|covers)\/([^/]+)(\/.*)?$/) ?? []
+        if (collection === 'books') requests.push(path)
         try {
-            const body = collection === 'books' ? books[id]
-                : collection === 'covers' ? covers[id]
-                : await readFile(join(dist, normalize(path)))
+            const book = collection === 'books' ? books[id] : undefined
+            const [body, type] = book?.pages ? comicResponse(book, rest)
+                : rest ? []
+                : collection === 'books' ? [book]
+                : collection === 'covers' ? [covers[id], types['.svg']]
+                : [await readFile(join(dist, normalize(path))), types[extname(path)]]
             if (body === undefined) throw new Error('not found')
-            const type = collection === 'covers' ? types['.svg'] : types[extname(path)]
             res.writeHead(200, { 'content-type': type ?? 'application/octet-stream' })
             res.end(body)
         } catch {
@@ -48,14 +60,14 @@ export const startReader = async (books, covers = {}) => {
     // (tests change window.libraryBooks to add books); positions plays the persisted
     // Positions; links are what successive calls for the Phone Page link return (the
     // first, then one per key reset); settings plays the persisted reader settings, which
-    // the page's window.savedSettings shows as they're saved; pdfSettings plays each
-    // PDF's own persisted settings ({ id: { name: value } }), shown the same way in
-    // window.savedPdfSettings.
-    const launch = async ({ library = [], positions = {}, links = [], settings = {}, pdfSettings = {} } = {}) => {
+    // the page's window.savedSettings shows as they're saved; bookSettings plays each
+    // book's own persisted settings ({ id: { name: value } }), shown the same way in
+    // window.savedBookSettings.
+    const launch = async ({ library = [], positions = {}, links = [], settings = {}, bookSettings = {} } = {}) => {
         const context = await browser.newContext({ viewport })
         const page = await context.newPage()
         page.on('pageerror', error => console.error('page error:', error))
-        await page.addInitScript(({ library, positions, links, settings, pdfSettings }) => {
+        await page.addInitScript(({ library, positions, links, settings, bookSettings }) => {
             window.libraryBooks = library
             window.ReadInsteadLibrary = { books: () => JSON.stringify(window.libraryBooks) }
             window.reportedStates = []
@@ -64,21 +76,21 @@ export const startReader = async (books, covers = {}) => {
                 onReaderState: json => window.reportedStates.push(JSON.parse(json)),
             }
             window.savedSettings = { ...settings }
-            // Like ReaderSettings, only the reader's own settings are kept, and of a PDF's own
-            // only Pairing and Fit-width.
+            // Like ReaderSettings, only the reader's own settings are kept, and of a book's own
+            // only Pairing, Fit-width and Right to left.
             const names = ['font', 'size', 'theme', 'layout', 'reading-speed']
-            const pdfNames = ['pairing', 'fit-width']
-            window.savedPdfSettings = structuredClone(pdfSettings)
+            const bookNames = ['pairing', 'fit-width', 'right-to-left']
+            window.savedBookSettings = structuredClone(bookSettings)
             window.ReadInsteadSettings = {
                 load: () => JSON.stringify(window.savedSettings),
                 save: (name, value) => {
                     if (names.includes(name)) window.savedSettings[name] = value
                 },
-                loadPdf: bookId => JSON.stringify(Object.fromEntries(Object.entries(window.savedPdfSettings[bookId] ?? {})
-                    .filter(([name]) => pdfNames.includes(name)))),
-                savePdf: (bookId, name, value) => {
-                    if (!pdfNames.includes(name)) return
-                    window.savedPdfSettings[bookId] = { ...window.savedPdfSettings[bookId], [name]: value }
+                loadBook: bookId => JSON.stringify(Object.fromEntries(Object.entries(window.savedBookSettings[bookId] ?? {})
+                    .filter(([name]) => bookNames.includes(name)))),
+                saveBook: (bookId, name, value) => {
+                    if (!bookNames.includes(name)) return
+                    window.savedBookSettings[bookId] = { ...window.savedBookSettings[bookId], [name]: value }
                 },
             }
             let link = 0
@@ -91,13 +103,14 @@ export const startReader = async (books, covers = {}) => {
                     return window.ReadInsteadPhone.link()
                 },
             }
-        }, { library, positions, links, settings, pdfSettings })
+        }, { library, positions, links, settings, bookSettings })
         await page.goto(`${origin}/src/index.html`)
         return new App(page, context)
     }
 
     return {
         launch,
+        requests,
         close: async () => {
             await browser.close()
             await new Promise(resolve => server.close(resolve))

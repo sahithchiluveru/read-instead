@@ -232,6 +232,30 @@ html, body {
 #stage .pages.fit-width canvas {
     display: block;
 }
+/* A CBZ Spread: two equal columns meeting at the spine, with no gutter, so art drawn across
+   both pages reads as one picture. Each page is fitted whole into its column (the browser
+   scales it down to the screen) and pushed against the spine; a lone page is centred. */
+#stage .pages.comic {
+    column-gap: 0;
+}
+#stage .comic .page {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#stage .comic .page:first-child:not(:only-child) {
+    justify-content: flex-end;
+}
+#stage .comic .page:last-child:not(:only-child) {
+    justify-content: flex-start;
+}
+#stage .comic img {
+    max-width: 100%;
+    max-height: 100%;
+}
 /* An EPUB's view reaches into the side margins, which foliate leaves blank as its
    outer gaps (see epub-reader.js). */
 #stage .pages foliate-view {

@@ -6,7 +6,8 @@ import java.util.concurrent.Executors
 
 /**
  * The reader's settings, exposed to the web reader as `ReadInsteadSettings`: the global ones
- * (font, size, theme, layout, reading speed) and a PDF's own (Pairing, Fit-width).
+ * (font, size, theme, layout, reading speed) and a book's own (a PDF's Pairing and Fit-width,
+ * a CBZ's Right to left).
  */
 class SettingsBridge(private val settings: ReaderSettings) {
     // The reader waits on every bridge call, and the reading speed is saved on most page
@@ -26,17 +27,17 @@ class SettingsBridge(private val settings: ReaderSettings) {
         saves.execute { settings.save(name, value) }
     }
 
-    /** A PDF's own saved settings (Pairing, Fit-width), as [load]. */
+    /** A book's own saved settings (Pairing, Fit-width, Right to left), as [load]. */
     @JavascriptInterface
-    fun loadPdf(bookId: String): String {
+    fun loadBook(bookId: String): String {
         awaitSaves()
-        return settings.pdfToJson(bookId)
+        return settings.bookToJson(bookId)
     }
 
-    /** Saves one of a PDF's own settings; anything else is ignored. */
+    /** Saves one of a book's own settings; anything else is ignored. */
     @JavascriptInterface
-    fun savePdf(bookId: String, name: String, value: String) {
-        saves.execute { settings.savePdf(bookId, name, value) }
+    fun saveBook(bookId: String, name: String, value: String) {
+        saves.execute { settings.saveForBook(bookId, name, value) }
     }
 
     private fun awaitSaves() {

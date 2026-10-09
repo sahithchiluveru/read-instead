@@ -1,18 +1,14 @@
 package io.github.sahithchiluveru.readinstead.library
 
 import org.w3c.dom.Document
-import org.w3c.dom.Element
 import java.io.File
 import java.net.URI
 import java.util.zip.ZipFile
-import javax.xml.XMLConstants
-import javax.xml.parsers.DocumentBuilderFactory
 
 /** Reads an EPUB's title, author and cover from its package document. */
 internal object EpubInfo {
     // Encryption that readers undo themselves, to stop fonts being lifted: not DRM.
     private val fontObfuscation = setOf("http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC")
-    private const val MAX_COVER_BYTES = 20L * 1024 * 1024
 
     fun read(file: File): BookInfo = ZipFile(file).use { zip ->
         if (isEncrypted(zip)) throw UnreadableBook("DRM-protected")
@@ -42,10 +38,7 @@ internal object EpubInfo {
             ?: images.firstOrNull { "cover" in "${it.getAttribute("id")} ${it.getAttribute("href")}".lowercase() }
             ?: return null
         val entry = zip.getEntry(resolve(opfPath, item.getAttribute("href"))) ?: return null
-        if (entry.size > MAX_COVER_BYTES) return null
-        // The declared size can be missing or wrong, so the read is capped too.
-        val bytes = zip.getInputStream(entry).use { it.readNBytes(MAX_COVER_BYTES.toInt() + 1) }
-        if (bytes.size > MAX_COVER_BYTES) return null
+        val bytes = zip.readImage(entry, MAX_COVER_BYTES) ?: return null
         return Cover(bytes, item.getAttribute("media-type"))
     }
 
@@ -63,27 +56,6 @@ internal object EpubInfo {
 
     private fun ZipFile.xml(path: String): Document {
         val entry = getEntry(path) ?: throw UnreadableBook("missing $path")
-        return getInputStream(entry).use { parser().parse(it) }
+        return getInputStream(entry).use { parseXml(it) }
     }
-
-    // Book files are untrusted: nothing external is fetched, and entity expansion is capped.
-    private fun parser() = DocumentBuilderFactory.newInstance().apply {
-        isNamespaceAware = true
-        isExpandEntityReferences = false
-        for ((feature, on) in listOf(
-            XMLConstants.FEATURE_SECURE_PROCESSING to true,
-            "http://apache.org/xml/features/nonvalidating/load-external-dtd" to false,
-            "http://xml.org/sax/features/external-general-entities" to false,
-            "http://xml.org/sax/features/external-parameter-entities" to false,
-        )) runCatching { setFeature(feature, on) } // not every platform's parser knows every feature
-    }.newDocumentBuilder()
-
-    /** Elements by local name, whatever their namespace prefix. */
-    private fun Document.elements(localName: String): List<Element> {
-        val all = getElementsByTagName("*")
-        return (0 until all.length).map { all.item(it) as Element }
-            .filter { (it.localName ?: it.tagName.substringAfter(':')) == localName }
-    }
-
-    private fun Element.text(): String? = textContent.collapseWhitespace()
 }

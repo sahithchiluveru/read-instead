@@ -1,7 +1,7 @@
 import * as pdfjs from '../vendor/pdfjs/build/pdf.min.mjs'
 import { isSinglePage } from './look.js'
 import { LruCache } from './lru.js'
-import { choosePairing, columnsOf, pagesOf, pairPages, spreadIndexOf } from './pdf-spreads.js'
+import { choosePairing, columnsOf, pagesOf, pairPages, spreadIndexOf, spreadLabel } from './pdf-spreads.js'
 
 const pdfjsUrl = new URL('../vendor/pdfjs/', import.meta.url).href
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsUrl + 'build/pdf.worker.min.mjs'
@@ -288,10 +288,9 @@ export class PdfReader {
         if (shown !== this.#shown || this.#closed) return
         const first = this.#firstPage(spread)
         const last = this.#spreads.length - 1
-        const pages = this.#doc.numPages
         this.#onLocation({
             position: this.#offset ? `${first}@${this.#offset}` : String(first),
-            pageLabel: left && right ? `Pages ${left}–${right} of ${pages}` : `Page ${first} of ${pages}`,
+            pageLabel: spreadLabel(this.#spreads[spread], this.#doc.numPages),
             progress: last ? spread / last : 1,
             chapter: chapters[chapterIndexAt(chapters, first)]?.title ?? '',
             charactersLeftInChapter: this.#charactersLeftInChapter(chapters, first),

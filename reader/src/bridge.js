@@ -39,14 +39,15 @@ export const savedReadingSpeed = () => {
 
 export const saveReadingSpeed = speed => saveSetting('reading-speed', JSON.stringify(speed))
 
-// A PDF's own saved settings, by name ('pairing', 'fit-width'), the same way.
-export const savedPdfSettings = bookId => JSON.parse(settings()?.loadPdf(bookId) ?? '{}')
+// A book's own saved settings, by name (a PDF's 'pairing' and 'fit-width', a CBZ's
+// 'right-to-left'), the same way.
+export const savedBookSettings = bookId => JSON.parse(settings()?.loadBook(bookId) ?? '{}')
 
-export const savePdfSetting = (bookId, name, value) => settings()?.savePdf(bookId, name, String(value))
+export const saveBookSetting = (bookId, name, value) => settings()?.saveBook(bookId, name, String(value))
 
 // Report the Reader's state; the native side saves the Position, keeps the screen on
 // while a book is open, and will answer Now Reading from it. Either { open: false } or
-// { open: true, bookId, format, mode, position, pageLabel, progress, chapter,
+// { open: true, bookId, format ('epub', 'pdf' or 'cbz'), mode, position, pageLabel, progress, chapter,
 // charactersLeftInChapter, minutesLeftInChapter, left, right }, where mode is 'reading', 'bar'
 // (Bar focus), 'contents', 'go-to', 'font', 'theme' or 'image-viewer' (the overlays), and an EPUB adds
 // pagesLeftInChapter. The time left is null until the reading speed is known.

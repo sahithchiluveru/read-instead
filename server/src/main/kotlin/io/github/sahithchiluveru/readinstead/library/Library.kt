@@ -2,6 +2,8 @@ package io.github.sahithchiluveru.readinstead.library
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
@@ -12,7 +14,7 @@ import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * The books on the TV: their files, covers and records (metadata, Position, progress, PDF settings),
+ * The books on the TV: their files, covers and records (metadata, Position, progress, the book's own settings),
  * plus the app's global settings, all kept under [dir]. Safe to use from any thread.
  */
 class Library(
@@ -24,7 +26,7 @@ class Library(
         data class Added(val book: Book) : AddResult
         /** The same contents are already on the Shelf; the existing book is untouched. */
         data class Duplicate(val book: Book) : AddResult
-        /** Not an EPUB or PDF, so nothing was kept. */
+        /** Not an EPUB, PDF or CBZ, so nothing was kept. */
         data object Unsupported : AddResult
     }
 
@@ -104,6 +106,8 @@ class Library(
                     id = id, format = format,
                     title = info?.title ?: fileName.substring(0, fileName.length - format.extension.length - 1),
                     author = info?.author, addedAt = clock(), unreadable = info == null, coverType = cover?.type,
+                    // Manga starts out right to left; the reader's Right to left button changes it.
+                    settings = if (info?.rightToLeft == true) mapOf(RIGHT_TO_LEFT to "true") else emptyMap(),
                 ).also {
                     books[id] = it
                     save()
@@ -139,9 +143,31 @@ class Library(
         update(id) { it.copy(position = position, progress = progress) }
     }
 
-    /** Saves one of a PDF's own settings; false if there's no such book. */
-    fun savePdfSetting(id: String, name: String, value: String): Boolean =
-        update(id) { it.copy(pdfSettings = it.pdfSettings + (name to value)) }
+    /** Saves one of a book's own settings; false if there's no such book. */
+    fun saveBookSetting(id: String, name: String, value: String): Boolean =
+        update(id) { it.copy(settings = it.settings + (name to value)) }
+
+    /**
+     * A CBZ's pages, by name in reading order, as a JSON array; null if there's no such
+     * readable CBZ. The reader asks for each page by its number in this list, from 1.
+     */
+    fun pagesJson(id: String): String? {
+        val file = comicFile(id) ?: return null
+        val names = runCatching { CbzInfo.pageNames(file) }.getOrNull() ?: return null
+        return JsonArray(names.map(::JsonPrimitive)).toString()
+    }
+
+    /**
+     * Page [number] (from 1) of a CBZ, read from the archive on its own and fitted to the
+     * screen ([Covers.fitPage]); null if there's no such page.
+     */
+    fun page(id: String, number: Int): Cover? {
+        val file = comicFile(id) ?: return null
+        val page = runCatching { CbzInfo.page(file, number) }.getOrNull() ?: return null
+        return runCatching { covers.fitPage(page) }.getOrDefault(page)
+    }
+
+    private fun comicFile(id: String): File? = book(id)?.takeIf { it.format == Format.CBZ && !it.unreadable }?.let(::fileOf)
 
     @Synchronized
     fun setting(name: String): String? = settings[name]
@@ -165,6 +191,7 @@ class Library(
         when (format) {
             Format.EPUB -> EpubInfo.read(file)
             Format.PDF -> PdfInfo.read(file).copy(cover = covers.pdfFirstPage(file))
+            Format.CBZ -> CbzInfo.read(file)
         }
     }.getOrNull()
 
@@ -184,8 +211,11 @@ class Library(
     }
 }
 
-/** What a book's own metadata says about it; null fields fall back to defaults. */
-internal data class BookInfo(val title: String?, val author: String?, val cover: Cover?)
+/**
+ * What a book's own metadata says about it; null fields fall back to defaults. [rightToLeft]
+ * is a CBZ marked as manga read right to left.
+ */
+internal data class BookInfo(val title: String?, val author: String?, val cover: Cover?, val rightToLeft: Boolean = false)
 
 /** The book is corrupt, DRM-protected or otherwise can't be read. */
 internal class UnreadableBook(message: String) : Exception(message)

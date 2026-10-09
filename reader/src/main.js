@@ -1,7 +1,8 @@
 import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
 import {
-    loadPosition, reportState, savePdfSetting, saveReadingSpeed, savedPdfSettings, savedReadingSpeed,
+    loadPosition, reportState, saveBookSetting, saveReadingSpeed, savedBookSettings, savedReadingSpeed,
 } from './bridge.js'
+import { CbzReader } from './cbz-reader.js'
 import { closeContents, focusedContentsEntry, moveContentsFocus, openContents } from './contents.js'
 import { closeGoTo, goToTarget, leapGoTo, nudgeGoTo, openGoTo } from './go-to.js'
 import { closeImageViewer, openImageViewer } from './image-viewer.js'
@@ -16,7 +17,7 @@ import {
     showTopBarLocation, toggleTopBar, withdrawReturn,
 } from './top-bar.js'
 
-const readers = { pdf: PdfReader, epub: EpubReader }
+const readers = { pdf: PdfReader, epub: EpubReader, cbz: CbzReader }
 
 const shelf = document.getElementById('shelf')
 const readerScreen = document.getElementById('reader')
@@ -126,13 +127,13 @@ const openLook = name => {
     setMode(name)
 }
 
-// A PDF's Pairing or Fit-width button: switch it, staying in Bar focus so OK switches it
-// back, and save the new value (if any) for the book.
-const togglePdfSetting = async (name, toggle) => {
+// A PDF's Pairing or Fit-width button, or a CBZ's Right to left: switch it, staying in Bar
+// focus so OK switches it back, and save the new value (if any) for the book.
+const toggleBookSetting = async (name, toggle) => {
     const { book, reader } = session
     try {
         const value = await toggle(reader)
-        if (value !== null) savePdfSetting(book.id, name, value)
+        if (value !== null) saveBookSetting(book.id, name, value)
     } catch (error) {
         console.error(error)
     }
@@ -143,8 +144,9 @@ const barActions = {
     contents: openContentsOverlay,
     font: () => openLook('font'),
     theme: () => openLook('theme'),
-    pairing: () => togglePdfSetting('pairing', reader => reader.togglePairing()),
-    'fit-width': () => togglePdfSetting('fit-width', reader => reader.toggleFitWidth()),
+    pairing: () => toggleBookSetting('pairing', reader => reader.togglePairing()),
+    'fit-width': () => toggleBookSetting('fit-width', reader => reader.toggleFitWidth()),
+    'right-to-left': () => toggleBookSetting('right-to-left', reader => reader.toggleRightToLeft()),
     'go-to'() {
         // A PDF reports its first location a little after the book is ready.
         const { reader, location } = session
@@ -295,7 +297,8 @@ const timeSpread = (open, { left, right }) => {
     else readingSpeed.shown(left.length + right.length, { turned })
 }
 
-// The Library's book files are served (by the Android shell) at /books/<id>.
+// The Library's book files are served (by the Android shell) at /books/<id>; a CBZ's pages
+// one at a time beneath it (see cbz-reader.js).
 const openBook = async book => {
     shelf.hidden = true
     readerScreen.hidden = false
@@ -316,7 +319,7 @@ const openBook = async book => {
     pages.className = 'pages'
     stage.replaceChildren(pages)
     opening.reader = new readers[book.format](pages, {
-        onKey, onLocation, look: currentLook(), settings: book.format === 'pdf' ? savedPdfSettings(book.id) : {},
+        onKey, onLocation, look: currentLook(), settings: savedBookSettings(book.id),
     })
     session = opening
     try {
@@ -375,7 +378,7 @@ const onBookDeleted = book => {
 initShelf({ openBook, openAddBooks })
 
 window.readInstead = {
-    // Open a book from the Library: { id, format: 'epub' | 'pdf' }.
+    // Open a book from the Library: { id, format: 'epub' | 'pdf' | 'cbz' }.
     open: openBook,
     // Called by the Android shell when a book arrives from the phone, or is deleted from it.
     bookAdded,

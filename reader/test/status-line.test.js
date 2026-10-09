@@ -7,6 +7,10 @@ test('a PDF reads chapter · pages · percent', () => {
         'Chapter 7 · Pages 212–213 of 500 · 42%')
 })
 
+test('a CBZ reads pages · percent', () => {
+    assert.equal(statusLine('cbz', { chapter: '', pageLabel: 'Pages 2–3 of 180', progress: 0.01 }), 'Pages 2–3 of 180 · 1%')
+})
+
 test('an EPUB reads chapter · percent · pages left in chapter', () => {
     assert.equal(statusLine('epub', { chapter: 'Chapter 7', pageLabel: '42%', progress: 0.42, pagesLeftInChapter: 12 }),
         'Chapter 7 · 42% · 12 pages left in chapter')

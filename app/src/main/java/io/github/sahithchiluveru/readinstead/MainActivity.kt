@@ -17,6 +17,7 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import androidx.webkit.WebViewFeature
+import io.github.sahithchiluveru.readinstead.library.Format
 import io.github.sahithchiluveru.readinstead.library.Library
 import io.github.sahithchiluveru.readinstead.library.ReaderSettings
 import io.github.sahithchiluveru.readinstead.library.toJson
@@ -48,11 +49,7 @@ class MainActivity : ComponentActivity() {
         val library = app.library
         val assets = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
-            .addPathHandler("/books/") { id ->
-                val book = library.book(id) ?: return@addPathHandler null
-                runCatching { WebResourceResponse(book.format.mimeType, null, library.file(id)!!.inputStream()) }
-                    .getOrNull()
-            }
+            .addPathHandler("/books/") { path -> bookResponse(library, path) }
             .addPathHandler("/covers/") { id ->
                 library.cover(id)?.let { WebResourceResponse(it.type, null, it.bytes.inputStream()) }
             }
@@ -105,6 +102,27 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
+    }
+
+    /**
+     * A book's file at /books/<id>. A CBZ is never served whole (volumes run to hundreds of
+     * MB): instead its page list is at /books/<id>/pages and each page, read from the
+     * archive on its own, at /books/<id>/pages/<n> (from 1).
+     */
+    private fun bookResponse(library: Library, path: String): WebResourceResponse? {
+        val parts = path.split('/')
+        val id = parts[0]
+        val book = library.book(id) ?: return null
+        return when {
+            parts.size == 1 && book.format != Format.CBZ ->
+                runCatching { WebResourceResponse(book.format.mimeType, null, library.file(id)!!.inputStream()) }.getOrNull()
+            parts.size == 2 && parts[1] == "pages" ->
+                library.pagesJson(id)?.let { WebResourceResponse("application/json", "utf-8", it.byteInputStream()) }
+            parts.size == 3 && parts[1] == "pages" ->
+                parts[2].toIntOrNull()?.let { library.page(id, it) }
+                    ?.let { WebResourceResponse(it.type, null, it.bytes.inputStream()) }
+            else -> null
+        }
     }
 
     private fun keepScreenOn(on: Boolean) {

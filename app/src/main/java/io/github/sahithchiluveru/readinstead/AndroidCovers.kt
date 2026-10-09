@@ -12,7 +12,10 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 
-/** Renders PDF covers with the platform's PdfRenderer and sizes every cover for the Shelf. */
+/**
+ * Renders PDF covers with the platform's PdfRenderer, sizes every cover for the Shelf, and
+ * scales down comic pages much larger than the screen.
+ */
 class AndroidCovers : Covers {
     override fun pdfFirstPage(file: File): Cover? {
         // The renderer owns the descriptor from here on, and closes it.
@@ -62,18 +65,49 @@ class AndroidCovers : Covers {
         return jpeg(scaled).also { scaled.recycle() }
     }
 
+    /**
+     * A page at least twice the screen's height is decoded at a power-of-two fraction of its
+     * size (inSampleSize: cheap, and the full-size bitmap never exists), keeping it at least
+     * as tall as the screen, and re-encoded as JPEG. Ordinary scans (up to about 2000 px
+     * tall) pass through untouched, costing nothing but reading their header.
+     */
+    override fun fitPage(page: Cover): Cover {
+        val bytes = page.bytes
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outHeight < SCREEN_HEIGHT * 2) return page
+        val sample = generateSequence(2) { it * 2 }.takeWhile { bounds.outHeight / it >= SCREEN_HEIGHT }.last()
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
+            BitmapFactory.Options().apply { inSampleSize = sample }) ?: return page
+        // Drawn over white, since JPEG has no transparency.
+        val opaque = if (!decoded.hasAlpha()) decoded else {
+            Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888).also {
+                Canvas(it).apply {
+                    drawColor(Color.WHITE)
+                    drawBitmap(decoded, 0f, 0f, null)
+                }
+                decoded.recycle()
+            }
+        }
+        return jpeg(opaque, PAGE_QUALITY).also { opaque.recycle() }
+    }
+
     /** The height at the Shelf's width, capped for absurdly tall images. */
     private fun heightFor(width: Int, height: Int) =
         (height.toLong() * WIDTH / width.coerceAtLeast(1)).toInt().coerceIn(1, WIDTH * 3)
 
-    private fun jpeg(bitmap: Bitmap): Cover {
+    private fun jpeg(bitmap: Bitmap, quality: Int = 85): Cover {
         val out = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
         return Cover(out.toByteArray(), "image/jpeg")
     }
 
     private companion object {
         /** Twice the Shelf's cover width, for the TV's 2× density. */
         const val WIDTH = 360
+
+        /** The TV's screen height in device pixels (the WebView's 540 dp at 2× density). */
+        const val SCREEN_HEIGHT = 1080
+        const val PAGE_QUALITY = 90
     }
 }

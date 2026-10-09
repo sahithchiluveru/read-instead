@@ -1,4 +1,4 @@
-// How a PDF's pages pair up into Spreads (docs/research/page-spreads.md §4).
+// How a PDF's (or a CBZ's) pages pair up into Spreads (docs/research/page-spreads.md §4).
 //
 // - 'book': like print, odd pages on the right, so the cover stands alone, then 2–3, 4–5.
 // - 'paper': 1–2, 3–4, with no lonely first page.
@@ -53,6 +53,10 @@ export const pairPages = (pairing, pageCount) => {
         spreads.push({ left: slots[i], right: slots[i + 1] ?? null })
     return spreads
 }
+
+// The status line's page label for a Spread: "Pages 2–3 of 45", or "Page 1 of 45" alone.
+export const spreadLabel = ({ left, right }, pageCount) =>
+    left && right ? `Pages ${left}–${right} of ${pageCount}` : `Page ${left ?? right} of ${pageCount}`
 
 // The index of the Spread showing a page; out-of-range pages go to the nearest end.
 export const spreadIndexOf = (spreads, page) => {
