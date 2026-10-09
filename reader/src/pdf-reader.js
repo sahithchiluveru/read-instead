@@ -1,5 +1,5 @@
 import * as pdfjs from '../vendor/pdfjs/build/pdf.min.mjs'
-import { bottomOffset, parsePosition, positionOf, scrolledOffset, scrollPage } from './fit-width.js'
+import { parsePosition, positionOf, scrollFitWidth, scrollPage } from './fit-width.js'
 import { isSinglePage } from './look.js'
 import { LruCache } from './lru.js'
 import { choosePairing, columnsOf, pagesOf, pairPages, spreadIndexOf, spreadLabel } from './pdf-spreads.js'
@@ -43,8 +43,8 @@ export class PdfReader {
     #pageCharacters = new Map() // characters of text on each page whose text has been read
 
     // onLocation receives { position, pageLabel, progress, chapter, charactersLeftInChapter,
-    // left, right } whenever a new Spread is on screen. The Position is the first page number shown (and in Fit-width,
-    // the scroll offset). look is the reader's look to start with; only its layout matters
+    // left, right } whenever the view moves: a new Spread, or in Fit-width a scroll. The
+    // Position is the first page number shown (and in Fit-width, the scroll offset). look is the reader's look to start with; only its layout matters
     // here. settings are the book's own saved settings: 'pairing' and 'fit-width'.
     constructor(container, { onLocation, look, settings = {} }) {
         this.#container = container
@@ -227,20 +227,17 @@ export class PdfReader {
         return true
     }
 
-    // Fit-width: scroll half a screen down (1) or up (-1); from the page's bottom (top), go
-    // to the top of the next page (the bottom of the previous one).
-    async #scroll(direction) {
+    // Fit-width: scroll half a screen down (1) or up (-1), as scrollFitWidth.
+    #scroll(direction) {
         const shown = this.#shown
-        const view = this.#container.clientHeight
-        const height = await this.#pageHeight(this.#spread)
-        if (shown !== this.#shown || !this.#fitWidth) return false // relaid out meanwhile
-        const offset = scrolledOffset(this.#offset, height, view, direction)
-        if (offset !== null) return this.#goTo(this.#spread, offset)
-        const spread = this.#spread + direction
-        if (direction > 0 || spread < 0) return this.#goTo(spread)
-        const previous = await this.#pageHeight(spread)
-        if (shown !== this.#shown || !this.#fitWidth) return false
-        return this.#goTo(spread, bottomOffset(previous, view))
+        return scrollFitWidth(direction, {
+            spread: this.#spread,
+            offset: this.#offset,
+            view: this.#container.clientHeight,
+            heightOf: spread => this.#pageHeight(spread),
+            stillCurrent: () => shown === this.#shown && this.#fitWidth,
+            goTo: (spread, offset) => this.#goTo(spread, offset),
+        })
     }
 
     // The height on screen of a Spread's page in Fit-width, in CSS px (as #draw sizes it).
@@ -261,7 +258,7 @@ export class PdfReader {
         this.#container.replaceChildren(...canvases.map((canvas, i) => canvas ?? blankLike(canvases[1 - i])))
         this.#container.classList.toggle('fit-width', this.#fitWidth)
         if (this.#fitWidth)
-            scrollPage(canvases[0], parseFloat(canvases[0].style.height), offset, this.#container.clientHeight)
+            scrollPage(canvases[0], offset, parseFloat(canvases[0].style.height), this.#container.clientHeight)
         this.#prefetch(spread)
         this.#report(shown).catch(error => console.error('reporting the location failed', error))
     }

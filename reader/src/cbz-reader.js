@@ -1,4 +1,4 @@
-import { bottomOffset, parsePosition, positionOf, scrolledOffset, scrollPage } from './fit-width.js'
+import { parsePosition, positionOf, scrollFitWidth, scrollPage } from './fit-width.js'
 import { isSinglePage } from './look.js'
 import { pagesOf, pairPages, spreadIndexOf, spreadLabel } from './pdf-spreads.js'
 
@@ -32,8 +32,8 @@ export class CbzReader {
     #images = new Map() // page number → promise of its decoded <img>
 
     // onLocation receives { position, pageLabel, progress, chapter, charactersLeftInChapter,
-    // left, right } whenever a new Spread is on screen. The Position is the first page shown
-    // (and in Fit-width, the scroll offset). settings are the book's own saved settings:
+    // left, right } whenever the view moves: a new Spread, or in Fit-width a scroll. The
+    // Position is the first page shown (and in Fit-width, the scroll offset). settings are the book's own saved settings:
     // 'right-to-left' and 'fit-width'.
     constructor(container, { onLocation, look, settings = {} }) {
         this.#container = container
@@ -154,20 +154,26 @@ export class CbzReader {
         return true
     }
 
-    // Fit-width: scroll half a screen down (1) or up (-1); from the page's bottom (top), go
-    // to the top of the next page (the bottom of the previous one).
-    async #scroll(direction) {
+    // Fit-width: scroll half a screen down (1) or up (-1), as scrollFitWidth.
+    #scroll(direction) {
         const shown = this.#shown
-        const view = this.#container.clientHeight
-        const height = this.#heightOf(await this.#image(this.#firstPage()))
-        if (shown !== this.#shown || !this.#fitWidth) return false // moved or relaid out meanwhile
-        const offset = scrolledOffset(this.#offset, height, view, direction)
-        if (offset !== null) return this.#goTo(this.#spread, offset)
-        const spread = this.#spread + direction
-        if (direction > 0 || spread < 0) return this.#goTo(spread)
-        const previous = this.#heightOf(await this.#image(this.#spreads[spread].left))
-        if (shown !== this.#shown || !this.#fitWidth) return false
-        return this.#goTo(spread, bottomOffset(previous, view))
+        return scrollFitWidth(direction, {
+            spread: this.#spread,
+            offset: this.#offset,
+            view: this.#container.clientHeight,
+            heightOf: spread => this.#pageHeight(spread),
+            stillCurrent: () => shown === this.#shown && this.#fitWidth,
+            goTo: (spread, offset) => this.#goTo(spread, offset),
+        })
+    }
+
+    // The height on screen of a Spread's page in Fit-width. Measuring the previous page (to
+    // step back to its bottom) lets go of the next one first, so no more than two scans are
+    // ever held: the TV has little memory.
+    async #pageHeight(spread) {
+        const page = this.#spreads[spread].left
+        if (spread !== this.#spread) this.#release(new Set([this.#firstPage(), page]))
+        return this.#heightOf(await this.#image(page))
     }
 
     // The height on screen of a decoded page in Fit-width, in CSS px: its shape across the
@@ -192,7 +198,7 @@ export class CbzReader {
             return column
         })
         if (this.#fitWidth)
-            scrollPage(columns[0], this.#heightOf(images[0]), offset, this.#container.clientHeight)
+            scrollPage(columns[0], offset, this.#heightOf(images[0]), this.#container.clientHeight)
         if (this.#rightToLeft) columns.reverse()
         this.#container.replaceChildren(...columns)
         this.#container.classList.toggle('fit-width', this.#fitWidth)
