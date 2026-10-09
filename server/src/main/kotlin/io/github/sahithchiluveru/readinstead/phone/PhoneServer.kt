@@ -21,9 +21,11 @@ import io.ktor.http.content.forEachPart
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.request.path
+import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondRedirect
 import io.ktor.server.response.respondText
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
@@ -97,6 +99,10 @@ class PhoneServer(
                 val cover = library.cover(call.parameters["id"]!!)
                 if (cover == null) call.respondText("No cover", status = HttpStatusCode.NotFound)
                 else call.respondBytes(cover.bytes, ContentType.parse(cover.type))
+            }
+            delete("/api/books/{id}") {
+                if (library.delete(call.parameters["id"]!!)) call.respond(HttpStatusCode.NoContent)
+                else call.respondText("No such book", status = HttpStatusCode.NotFound)
             }
             post("/api/books") {
                 // Files stream straight to disk, one part at a time, however large they are.

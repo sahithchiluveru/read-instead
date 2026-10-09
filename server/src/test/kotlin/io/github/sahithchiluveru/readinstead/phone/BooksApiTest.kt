@@ -1,6 +1,6 @@
 package io.github.sahithchiluveru.readinstead.phone
 
-import io.github.sahithchiluveru.readinstead.library.Book
+import io.github.sahithchiluveru.readinstead.library.Library
 import io.github.sahithchiluveru.readinstead.library.Cover
 import io.github.sahithchiluveru.readinstead.library.Covers
 import kotlinx.serialization.json.JsonNull
@@ -187,12 +187,52 @@ class BooksApiTest {
     }
 
     @Test
-    fun `the TV hears about every book added`() {
-        val added = mutableListOf<Book>()
-        phone.library.addListener { added += it }
-        phone.uploadResults("a.epub" to FixtureBooks.epub(title = "A"), "a2.epub" to FixtureBooks.epub(title = "A"),
+    fun `the TV hears about every book added and deleted`() {
+        val changes = mutableListOf<String>()
+        phone.library.addListener { change ->
+            changes += when (change) {
+                is Library.Change.Added -> "added ${change.book.title}"
+                is Library.Change.Deleted -> "deleted ${change.book.title}"
+            }
+        }
+        val (a) = phone.uploadResults("a.epub" to FixtureBooks.epub(title = "A"), "a2.epub" to FixtureBooks.epub(title = "A"),
             "b.txt" to FixtureBooks.garbage)
-        assertEquals(listOf("A"), added.map { it.title })
+        phone.delete(a.book().text("id")!!)
+        assertEquals(listOf("added A", "deleted A"), changes)
+    }
+
+    @Test
+    fun `deleting a book removes its file, cover, record and Position`() {
+        val (kept, gone) = phone.uploadResults("kept.epub" to FixtureBooks.epub(title = "Kept"),
+            "gone.epub" to FixtureBooks.epub(title = "Gone"))
+        val id = gone.book().text("id")!!
+        phone.library.savePosition(id, "epubcfi(/6/4)", 0.5)
+
+        assertEquals(204, phone.delete(id).statusCode())
+        assertEquals(listOf("Kept"), phone.books().map { it.text("title") })
+        assertEquals(404, phone.get("/api/books/$id/cover", phone.connect()).statusCode())
+        assertEquals(listOf(kept.book().text("id")), phone.dir.resolve("books").list()!!.map { it.substringBefore('.') })
+        assertEquals(1, phone.dir.resolve("covers").list()!!.size)
+
+        // Gone for good: after a restart too, and uploading it again starts afresh.
+        phone.restart()
+        assertEquals(listOf("Kept"), phone.books().map { it.text("title") })
+        val (again) = phone.uploadResults("gone.epub" to FixtureBooks.epub(title = "Gone"))
+        assertEquals("added", again.status())
+        assertEquals(null, again.book().text("position"))
+        assertEquals(0.0, again.book().getValue("progress").jsonPrimitive.double)
+    }
+
+    @Test
+    fun `deleting an unknown book is not found`() {
+        assertEquals(404, phone.delete("0123abcd").statusCode())
+    }
+
+    @Test
+    fun `deleting needs the Access Key`() {
+        val (result) = phone.uploadResults("a.epub" to FixtureBooks.epub())
+        assertEquals(401, phone.delete(result.book().text("id")!!, cookie = null).statusCode())
+        assertEquals(1, phone.books().size)
     }
 
     @Test

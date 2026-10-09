@@ -28,6 +28,13 @@ class Library(
         data object Unsupported : AddResult
     }
 
+    /** What the TV hears when the phone changes the Library. */
+    sealed interface Change {
+        val book: Book
+        data class Added(override val book: Book) : Change
+        data class Deleted(override val book: Book) : Change
+    }
+
     @Serializable
     private class Store(val books: List<Book> = emptyList(), val settings: Map<String, String> = emptyMap())
 
@@ -37,7 +44,7 @@ class Library(
     private val storeFile = dir.resolve("library.json")
     private val books = LinkedHashMap<String, Book>()
     private val settings = HashMap<String, String>()
-    private val listeners = CopyOnWriteArrayList<(Book) -> Unit>()
+    private val listeners = CopyOnWriteArrayList<(Change) -> Unit>()
 
     init {
         listOf(booksDir, coversDir, uploadsDir).forEach { it.mkdirs() }
@@ -68,9 +75,9 @@ class Library(
         return runCatching { Cover(coversDir.resolve(id).readBytes(), type) }.getOrNull()
     }
 
-    /** Hears about every book added, on the thread that added it. */
-    fun addListener(listener: (Book) -> Unit) = listeners.add(listener)
-    fun removeListener(listener: (Book) -> Unit) = listeners.remove(listener)
+    /** Hears about every book added or deleted, on the thread that changed it. */
+    fun addListener(listener: (Change) -> Unit) = listeners.add(listener)
+    fun removeListener(listener: (Change) -> Unit) = listeners.remove(listener)
 
     /**
      * Adds a book from [content], named [fileName] on the phone. The contents are streamed
@@ -102,11 +109,24 @@ class Library(
                     save()
                 }
             }
-            listeners.forEach { it(book) }
+            listeners.forEach { it(Change.Added(book)) }
             return AddResult.Added(book)
         } finally {
             upload.delete()
         }
+    }
+
+    /** Deletes a book: its file, cover and record, Position included. False if there's no such book. */
+    fun delete(id: String): Boolean {
+        val book = synchronized(this) {
+            val book = books.remove(id) ?: return false
+            save()
+            fileOf(book).delete()
+            coversDir.resolve(id).delete()
+            book
+        }
+        listeners.forEach { it(Change.Deleted(book)) }
+        return true
     }
 
     /** The book was opened on the TV, which puts it first on the Shelf. */

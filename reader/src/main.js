@@ -2,7 +2,7 @@ import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
 import { loadPosition, reportState } from './bridge.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
-import { bookAdded, initShelf, renderShelf } from './shelf.js'
+import { bookAdded, bookDeleted, initShelf, renderShelf } from './shelf.js'
 
 const readers = { pdf: PdfReader, epub: EpubReader }
 
@@ -112,13 +112,21 @@ const closeBook = () => {
 }
 
 addEventListener('keydown', onKey)
+
+// A book was deleted from the phone; if it's the one open, the TV goes back to the Shelf.
+const onBookDeleted = book => {
+    const wasOpen = session?.book.id === book.id
+    if (wasOpen) closeBook()
+    bookDeleted(book, { wasOpen })
+}
 initShelf({ openBook, openAddBooks })
 
 window.readInstead = {
     // Open a book from the Library: { id, format: 'epub' | 'pdf' }.
     open: openBook,
-    // Called by the Android shell when a book arrives from the phone.
+    // Called by the Android shell when a book arrives from the phone, or is deleted from it.
     bookAdded,
+    bookDeleted: onBookDeleted,
     // Called by the Android shell on Back; returns true if the reader handled it.
     back() {
         if (isAddBooksOpen()) {

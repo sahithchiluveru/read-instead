@@ -15,7 +15,7 @@
     .banner h2 { font-size: 18px; margin: 0 0 4px; }
     .banner p { margin: 0; color: var(--dim); }
     body.unreachable .banner.unreachable, body.locked-out .banner.locked-out { display: block; }
-    body.unreachable .status, body.locked-out .status, body.unreachable .upload, body.locked-out .upload { display: none; }
+    body.unreachable :is(.status, .upload, .library), body.locked-out :is(.status, .upload, .library) { display: none; }
     .pick { display: block; padding: 18px; border-radius: 12px; background: var(--accent); color: #fff;
         font: 600 18px system-ui, sans-serif; text-align: center; }
     .pick input { display: none; }
@@ -25,6 +25,20 @@
     .uploads progress { display: block; width: 100%; height: 6px; margin: 8px 0 4px; accent-color: var(--accent); }
     .uploads .result { color: var(--dim); font: 15px system-ui, sans-serif; }
     .uploads .failed .result { color: #A33; }
+    .library h2 { font-size: 20px; margin: 32px 0 8px; }
+    .library .none { color: var(--dim); }
+    .books { list-style: none; margin: 0; padding: 0; }
+    .books li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #0001; }
+    .books .cover { flex: none; display: flex; align-items: center; justify-content: center; width: 48px; height: 72px;
+        overflow: hidden; border-radius: 4px; background: #3D2F231A; color: var(--dim); font-size: 22px; }
+    .books .cover img { width: 100%; height: 100%; object-fit: cover; }
+    .books .info { flex: 1; min-width: 0; }
+    .books .title { overflow-wrap: anywhere; }
+    .books .meta { color: var(--dim); font: 14px system-ui, sans-serif; }
+    .books .bar { height: 3px; margin-top: 6px; border-radius: 2px; background: #3D2F2326; }
+    .books .bar span { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+    .books .delete { flex: none; padding: 8px 14px; border: 1px solid #A33; border-radius: 8px; background: none;
+        color: #A33; font: 15px system-ui, sans-serif; }
 </style>
 </head>
 <body>
@@ -35,6 +49,11 @@
         <input type="file" multiple accept=".epub,.pdf,application/epub+zip,application/pdf">
     </label>
     <ul class="uploads"></ul>
+</section>
+<section class="library">
+    <h2>Library</h2>
+    <p class="none" hidden>No books on the TV yet.</p>
+    <ul class="books"></ul>
 </section>
 <section class="banner unreachable" role="alert">
     <h2>TV app not reachable</h2>
@@ -56,6 +75,50 @@
     }
     let queue = Promise.resolve()
 
+    // The Library: every book on the TV, with Delete.
+    const bookList = document.querySelector('.books')
+    const loadLibrary = async () => {
+        let books
+        try {
+            const response = await fetch('/api/books', { cache: 'no-store' })
+            if (!response.ok) return
+            books = await response.json()
+        } catch {
+            return
+        }
+        bookList.replaceChildren(...books.map(bookRow))
+        document.querySelector('.library .none').hidden = books.length > 0
+    }
+
+    const bookRow = book => {
+        const row = document.createElement('li')
+        row.innerHTML = '<span class="cover">📖</span><div class="info"><div class="title"></div><div class="meta"></div>' +
+            '<div class="bar"><span></span></div></div><button class="delete">Delete</button>'
+        if (book.coverType) {
+            const img = document.createElement('img')
+            img.alt = ''
+            img.src = `/api/books/${encodeURIComponent(book.id)}/cover`
+            row.querySelector('.cover').replaceChildren(img)
+        }
+        row.querySelector('.title').textContent = book.title
+        const percent = Math.round(book.progress * 100)
+        const status = book.unreadable ? "Couldn't open this book" : `${percent}% read`
+        row.querySelector('.meta').textContent = [book.author, status].filter(Boolean).join(' · ')
+        row.querySelector('.bar span').style.width = `${percent}%`
+        if (book.unreadable) row.querySelector('.bar').remove()
+        row.querySelector('.delete').addEventListener('click', async () => {
+            if (!confirm(`Delete "${book.title}"?\n\nAre you sure? It's removed from the TV, with your reading position.`)) return
+            try {
+                const response = await fetch(`/api/books/${encodeURIComponent(book.id)}`, { method: 'DELETE' })
+                if (!response.ok && response.status !== 404) throw new Error(response.statusText)
+            } catch {
+                alert("Couldn't delete the book. Is Read Instead still open on the TV?")
+            }
+            loadLibrary()
+        })
+        return row
+    }
+
     const upload = (file, row) => new Promise(resolve => {
         const progress = row.querySelector('progress')
         const show = (text, failed = false) => {
@@ -72,6 +135,7 @@
             if (request.status !== 200) return show("The TV couldn't save this book", true)
             const [result] = JSON.parse(request.responseText).results
             show(messages[result.status](result.book), result.status === 'unsupported')
+            loadLibrary()
         }
         request.onerror = () => show('Upload failed: is Read Instead still open on the TV?', true)
         const form = new FormData()
@@ -109,10 +173,17 @@
         } catch {
             state = 'unreachable'
         }
+        // Back in touch after a gap: the TV's books may have changed meanwhile.
+        if (!state && document.body.className) loadLibrary()
         document.body.className = state
     }
     setInterval(check, 5000)
-    addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check())
+    addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return
+        check()
+        loadLibrary()
+    })
+    loadLibrary()
     addEventListener('online', check)
 </script>
 </body>

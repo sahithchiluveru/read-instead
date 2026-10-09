@@ -78,6 +78,16 @@ export const bookAdded = book => {
     showToast(`Added: ${book.title}`)
 }
 
+// A book was deleted from the phone. If its tile had focus, the next tile takes it
+// (there's always one: the Add books tile). If it was open, the TV has just come back
+// to the Shelf, so say why.
+export const bookDeleted = (book, { wasOpen = false } = {}) => {
+    const all = tiles()
+    const i = all.findIndex(tile => tile === document.activeElement && idOf(tile) === book.id)
+    renderShelf(i >= 0 ? idOf(all[i + 1]) : undefined)
+    if (wasOpen) showToast(`Deleted from your phone: ${book.title}`)
+}
+
 // D-pad focus across the grid: rows wrap at the column count; ↓ into a short last
 // row lands on its last tile.
 const moveFocus = e => {

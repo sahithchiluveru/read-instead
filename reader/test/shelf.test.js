@@ -31,6 +31,12 @@ const tiles = app => app.page.evaluate(() => [...document.querySelectorAll('#she
 })))
 const focused = app => app.page.evaluate(() => document.activeElement.dataset.id ?? document.activeElement.id)
 const shelfVisible = app => app.page.isVisible('#shelf')
+// The phone deletes a book: the native Library drops it, then tells the reader.
+const deleteBook = (app, id) => app.page.evaluate(id => {
+    const book = window.libraryBooks.find(book => book.id === id)
+    window.libraryBooks = window.libraryBooks.filter(book => book.id !== id)
+    window.readInstead.bookDeleted(book)
+}, id)
 
 describe('the Shelf', () => {
     test('is the opening screen: covers in order, a progress bar each, then Add books', async () => {
@@ -150,6 +156,46 @@ describe('the Shelf', () => {
         }, paper)
         assert.equal(await app.page.isVisible('#shelf .empty'), false)
         assert.equal(await focused(app), 'paper')
+        await app.close()
+    })
+
+    test('a book deleted from the phone disappears, and focus moves to its neighbour', async () => {
+        const library = [record('a', 'A'), record('b', 'B'), record('c', 'C')]
+        const app = await reader.launch({ library, links })
+        await app.page.keyboard.press('ArrowRight')
+        assert.equal(await focused(app), 'b')
+        await deleteBook(app, 'b')
+        assert.deepEqual((await tiles(app)).map(t => t.id), ['a', 'c', 'add-books'])
+        assert.equal(await focused(app), 'c')
+        await deleteBook(app, 'a') // not the focused one: focus stays put
+        assert.equal(await focused(app), 'c')
+        await deleteBook(app, 'c')
+        assert.equal(await app.page.isVisible('#shelf .empty'), true, 'the last one gone: the QR code is back')
+        assert.equal(await focused(app), 'add-books')
+        await app.close()
+    })
+
+    test('deleting the book open on the TV returns to the Shelf', async () => {
+        const app = await reader.launch({ library: [chapters, paper], links })
+        await app.open(chapters)
+        await app.press('ArrowRight')
+        await deleteBook(app, 'chapters')
+        assert.deepEqual(await app.state(), { open: false })
+        assert.equal(await shelfVisible(app), true)
+        assert.deepEqual((await tiles(app)).map(t => t.id), ['paper', 'add-books'])
+        assert.equal(await focused(app), 'paper')
+        assert.equal(await app.page.textContent('#toast'), 'Deleted from your phone: Chapters Fixture')
+        await app.close()
+    })
+
+    test('deleting another book while reading leaves the reading alone', async () => {
+        const app = await reader.launch({ library: [chapters, paper], links })
+        await app.open(chapters)
+        const count = await app.stateCount()
+        await deleteBook(app, 'paper')
+        assert.equal(await app.stateCount(), count)
+        assert.equal(await shelfVisible(app), false)
+        assert.equal((await app.press('ArrowRight')).bookId, 'chapters')
         await app.close()
     })
 

@@ -82,6 +82,10 @@ class PhoneHarness(private val covers: Covers = object : Covers {}) : AutoClosea
         return setCookie.substringBefore(';')
     }
 
+    /** Deletes a book from the Phone Page's Library. */
+    fun delete(id: String, cookie: String? = connect()): HttpResponse<String> =
+        send(HttpRequest.newBuilder(URI("$base/api/books/$id")).DELETE(), cookie)
+
     /** Uploads files from the Phone Page in one multipart request, as (file name, contents). */
     fun upload(vararg files: Pair<String, ByteArray>, cookie: String? = connect()): HttpResponse<String> {
         val boundary = "read-instead-${System.nanoTime()}"

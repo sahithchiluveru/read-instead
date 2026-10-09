@@ -17,7 +17,7 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import androidx.webkit.WebViewFeature
-import io.github.sahithchiluveru.readinstead.library.Book
+import io.github.sahithchiluveru.readinstead.library.Library
 import io.github.sahithchiluveru.readinstead.library.toJson
 
 internal const val TAG = "ReadInstead"
@@ -28,9 +28,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private val app get() = application as ReadInsteadApp
 
-    // A book arrived from the phone: the Shelf shows it at once, with a toast.
-    private val onBookAdded: (Book) -> Unit = { book ->
-        runOnUiThread { webView.evaluateJavascript("window.readInstead?.bookAdded(${book.toJson()})", null) }
+    // The phone added or deleted a book: the Shelf (and an open book) follow at once.
+    private val onLibraryChange: (Library.Change) -> Unit = { change ->
+        val function = when (change) {
+            is Library.Change.Added -> "bookAdded"
+            is Library.Change.Deleted -> "bookDeleted"
+        }
+        runOnUiThread { webView.evaluateJavascript("window.readInstead?.$function(${change.book.toJson()})", null) }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -84,7 +88,7 @@ class MainActivity : ComponentActivity() {
             isFocusableInTouchMode = true
         }
         setContentView(webView)
-        library.addListener(onBookAdded)
+        library.addListener(onLibraryChange)
         webView.loadUrl(READER_URL)
         webView.requestFocus()
 
@@ -116,7 +120,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        app.library.removeListener(onBookAdded)
+        app.library.removeListener(onLibraryChange)
         webView.destroy()
         super.onDestroy()
     }
