@@ -4,7 +4,8 @@ import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
 import { bookAdded, bookDeleted, initShelf, renderShelf } from './shelf.js'
 import {
-    blurTopBar, focusTopBar, focusedAction, hideTopBar, moveTopBarFocus, resetTopBar, showLocation, toggleTopBar,
+    blurTopBar, focusTopBar, focusedTopBarAction, hideTopBar, moveTopBarFocus, resetTopBar, showTopBarLocation,
+    toggleTopBar,
 } from './top-bar.js'
 
 const readers = { pdf: PdfReader, epub: EpubReader }
@@ -16,8 +17,9 @@ const hud = document.getElementById('hud')
 
 // The open book: { book: { id, format, ... }, reader, ready, mode, location }. Keys only
 // reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread) or 'bar' (Bar
-// focus: ←/→ move between the Top Bar's buttons); location is the Spread on screen. Each reader draws into its own element in the stage, so one
-// abandoned mid-open can't touch the next book's pages.
+// focus: ←/→ move between the Top Bar's buttons); location is the Spread on screen.
+// Each reader draws into its own element in the stage, so one abandoned mid-open can't
+// touch the next book's pages.
 let session = null
 // Presses that arrive mid-turn are queued (as a net direction) rather than dropped.
 let queuedTurns = 0
@@ -82,7 +84,7 @@ const barKeys = {
     ArrowRight: () => moveTopBarFocus(1),
     ArrowUp() {},
     ArrowDown: () => setMode('reading'),
-    Enter: () => barActions[focusedAction()]?.(),
+    Enter: () => barActions[focusedTopBarAction()]?.(),
 }
 
 const onKey = e => {
@@ -111,7 +113,7 @@ const openBook = async book => {
     const onLocation = location => {
         if (session !== opening) return
         opening.location = location
-        showLocation(book.format, location)
+        showTopBarLocation(book.format, location)
         report()
     }
     const pages = document.createElement('div')

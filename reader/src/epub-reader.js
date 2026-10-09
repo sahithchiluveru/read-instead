@@ -75,12 +75,18 @@ export class EpubReader {
     }
 
     // Pages after this Spread before the next chapter, or null in a fixed-layout book,
-    // which has no reflowed pages. Each chapter is laid out on its own, so this counts the
-    // Spreads left in it (between the paginator's blank padding pages) a full Spread each.
+    // which has no reflowed pages. Each chapter is laid out on its own, as columns running
+    // left to right from x = 0 in its document (the paginator's blank padding page sits
+    // before that), so the columns its content reaches into are the chapter's pages.
     #pagesLeftInChapter() {
         if (this.#view.isFixedLayout) return null
-        const { page, pages } = this.#view.renderer
-        return (pages - 2 - page) * COLUMNS
+        const renderer = this.#view.renderer
+        const [{ doc }] = renderer.getContents()
+        const column = renderer.size / COLUMNS
+        const contentEnd = Math.max(0, ...[...rangeOfBody(doc).getClientRects()]
+            .filter(rect => rect.width > 0).map(rect => rect.right))
+        const chapterPages = Math.ceil(contentEnd / column - 0.01) // ignore sub-pixel overhang
+        return Math.max(0, chapterPages - renderer.page * COLUMNS)
     }
 
     #visibleText(range) {

@@ -21,7 +21,7 @@ export const resetTopBar = format => {
     blurTopBar()
 }
 
-export const showLocation = (format, location) => {
+export const showTopBarLocation = (format, location) => {
     status.textContent = statusLine(format, location)
     fill.style.width = `${location.progress * 100}%`
 }
@@ -51,5 +51,5 @@ export const moveTopBarFocus = direction => {
 }
 
 // The action of the focused button ('hide', 'shelf', ...).
-export const focusedAction = () => buttonRow.contains(document.activeElement)
+export const focusedTopBarAction = () => buttonRow.contains(document.activeElement)
     ? document.activeElement.dataset.action : null
