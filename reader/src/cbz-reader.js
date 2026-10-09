@@ -1,3 +1,4 @@
+import { bottomOffset, parsePosition, positionOf, scrolledOffset, scrollPage } from './fit-width.js'
 import { isSinglePage } from './look.js'
 import { pagesOf, pairPages, spreadIndexOf, spreadLabel } from './pdf-spreads.js'
 
@@ -10,6 +11,8 @@ import { pagesOf, pairPages, spreadIndexOf, spreadLabel } from './pdf-spreads.js
 // Pages pair like a printed comic: the cover alone, then 2–3, 4–5. In the single-page
 // layout every page is shown alone. Each book has its own Right to left: manga's Spreads
 // are mirrored, the first page on the right, while → still goes forward through the book.
+// And its own Fit-width (see fit-width.js), for lettering too small to read in a Spread:
+// one page at a time, across the screen. With one page, Right to left changes nothing there.
 // Pages are pictures, so there's no text, no chapters and no Contents, and the theme only
 // colours the background around them.
 export class CbzReader {
@@ -18,22 +21,26 @@ export class CbzReader {
     #onLocation
     #look // the reader's look; only its layout matters here
     #rightToLeft
+    #fitWidth
     #url
     #pageCount = 0
     #spreads = []
     #spread = 0 // index into #spreads
+    #offset = 0 // in Fit-width, how far down the page is scrolled, as a fraction of its height
     #shown = 0 // counts calls to #show, so a stale one can tell
     #closed = false
     #images = new Map() // page number → promise of its decoded <img>
 
     // onLocation receives { position, pageLabel, progress, chapter, charactersLeftInChapter,
-    // left, right } whenever a new Spread is on screen. The Position is the first page shown.
-    // settings are the book's own saved settings: 'right-to-left'.
+    // left, right } whenever a new Spread is on screen. The Position is the first page shown
+    // (and in Fit-width, the scroll offset). settings are the book's own saved settings:
+    // 'right-to-left' and 'fit-width'.
     constructor(container, { onLocation, look, settings = {} }) {
         this.#container = container
         this.#onLocation = onLocation
         this.#look = look
         this.#rightToLeft = settings['right-to-left'] === 'true'
+        this.#fitWidth = settings['fit-width'] === 'true'
         container.classList.add('comic')
     }
 
@@ -41,8 +48,13 @@ export class CbzReader {
         return this.#rightToLeft
     }
 
+    // Whether Fit-width is on, so → scrolls rather than turning a whole Spread.
+    get fitWidth() {
+        return this.#fitWidth
+    }
+
     get #pairing() {
-        return isSinglePage(this.#look) ? 'single' : 'book'
+        return this.#fitWidth || isSinglePage(this.#look) ? 'single' : 'book'
     }
 
     async open(url, position) {
@@ -52,16 +64,17 @@ export class CbzReader {
         this.#pageCount = (await response.json()).length
         if (!this.#pageCount) throw new Error('no pages')
         this.#spreads = pairPages(this.#pairing, this.#pageCount)
-        await this.#show(spreadIndexOf(this.#spreads, Number(position ?? 1)))
+        const { page, offset } = parsePosition(position ?? 1)
+        await this.#show(spreadIndexOf(this.#spreads, page), this.#fitWidth ? offset : 0)
     }
 
     // Resolve to whether the view moved (false at the start/end of the book).
     next() {
-        return this.#goTo(this.#spread + 1)
+        return this.#fitWidth ? this.#scroll(1) : this.#goTo(this.#spread + 1)
     }
 
     prev() {
-        return this.#goTo(this.#spread - 1)
+        return this.#fitWidth ? this.#scroll(-1) : this.#goTo(this.#spread - 1)
     }
 
     async contents() {
@@ -72,16 +85,18 @@ export class CbzReader {
         return ''
     }
 
-    // Jump to a page (a Position); resolves to whether the view moved.
+    // Jump to a page (a Position, its scroll offset kept in Fit-width); resolves to whether
+    // the view moved.
     goTo(target) {
-        return this.#jump(spreadIndexOf(this.#spreads, Number(target)))
+        const { page, offset } = parsePosition(target)
+        return this.#jump(spreadIndexOf(this.#spreads, page), this.#fitWidth ? offset : 0)
     }
 
     goToFraction(fraction) {
         return this.#jump(Math.round(fraction * (this.#spreads.length - 1)))
     }
 
-    // The Spread's first page, for the image viewer.
+    // The Spread's first page (in Fit-width, the page), for the image viewer.
     spreadImage() {
         return this.#pageUrl(this.#firstPage())
     }
@@ -99,8 +114,18 @@ export class CbzReader {
     // Switch Right to left on or off. Resolves to whether it's on, to be saved for the book.
     async toggleRightToLeft() {
         this.#rightToLeft = !this.#rightToLeft
-        await this.#show(this.#spread)
+        await this.#show(this.#spread, this.#offset)
         return this.#rightToLeft
+    }
+
+    // Switch Fit-width on or off, keeping the first page on screen (at its top). Resolves to
+    // whether it's on, to be saved for the book.
+    async toggleFitWidth() {
+        const page = this.#firstPage()
+        this.#fitWidth = !this.#fitWidth
+        this.#spreads = pairPages(this.#pairing, this.#pageCount)
+        await this.#show(spreadIndexOf(this.#spreads, page))
+        return this.#fitWidth
     }
 
     close() {
@@ -118,20 +143,43 @@ export class CbzReader {
         return `${this.#url}/pages/${page}`
     }
 
-    async #jump(spread) {
-        if (spread === this.#spread) return false
-        return this.#goTo(spread)
+    async #jump(spread, offset = 0) {
+        if (spread === this.#spread && offset === this.#offset) return false
+        return this.#goTo(spread, offset)
     }
 
-    async #goTo(spread) {
+    async #goTo(spread, offset = 0) {
         if (spread < 0 || spread >= this.#spreads.length) return false
-        await this.#show(spread)
+        await this.#show(spread, offset)
         return true
     }
 
-    async #show(spread) {
+    // Fit-width: scroll half a screen down (1) or up (-1); from the page's bottom (top), go
+    // to the top of the next page (the bottom of the previous one).
+    async #scroll(direction) {
+        const shown = this.#shown
+        const view = this.#container.clientHeight
+        const height = this.#heightOf(await this.#image(this.#firstPage()))
+        if (shown !== this.#shown || !this.#fitWidth) return false // moved or relaid out meanwhile
+        const offset = scrolledOffset(this.#offset, height, view, direction)
+        if (offset !== null) return this.#goTo(this.#spread, offset)
+        const spread = this.#spread + direction
+        if (direction > 0 || spread < 0) return this.#goTo(spread)
+        const previous = this.#heightOf(await this.#image(this.#spreads[spread].left))
+        if (shown !== this.#shown || !this.#fitWidth) return false
+        return this.#goTo(spread, bottomOffset(previous, view))
+    }
+
+    // The height on screen of a decoded page in Fit-width, in CSS px: its shape across the
+    // stage's width (0 if it failed to load).
+    #heightOf({ naturalWidth, naturalHeight }) {
+        return naturalWidth ? this.#container.getBoundingClientRect().width * naturalHeight / naturalWidth : 0
+    }
+
+    async #show(spread, offset = 0) {
         const shown = ++this.#shown
         this.#spread = spread
+        this.#offset = offset
         const { left, right } = this.#spreads[spread]
         const slots = this.#pairing === 'single' ? [left] : [left, right]
         const images = await Promise.all(slots.map(page => page && this.#image(page)))
@@ -143,13 +191,17 @@ export class CbzReader {
             if (image) column.append(image)
             return column
         })
+        if (this.#fitWidth)
+            scrollPage(columns[0], this.#heightOf(images[0]), offset, this.#container.clientHeight)
         if (this.#rightToLeft) columns.reverse()
         this.#container.replaceChildren(...columns)
+        this.#container.classList.toggle('fit-width', this.#fitWidth)
         this.#prepareNext(spread)
         this.#report()
     }
 
-    // Keep only the pages of this Spread and the next, starting on the next one's.
+    // Keep only the pages of this Spread and the next (in Fit-width, this page and the next),
+    // starting on the next one's.
     #prepareNext(spread) {
         const keep = new Set([spread, spread + 1].flatMap(s => this.#spreads[s] ? pagesOf(this.#spreads[s]) : []))
         this.#release(keep)
@@ -188,7 +240,7 @@ export class CbzReader {
         const spread = this.#spreads[this.#spread]
         const last = this.#spreads.length - 1
         this.#onLocation({
-            position: String(this.#firstPage()),
+            position: positionOf(this.#firstPage(), this.#offset),
             pageLabel: spreadLabel(spread, this.#pageCount),
             progress: last ? this.#spread / last : 1,
             chapter: '',

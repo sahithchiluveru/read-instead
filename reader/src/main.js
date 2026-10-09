@@ -131,8 +131,8 @@ const openLook = name => {
 const showSwitches = reader =>
     showTopBarSwitches({ 'fit-width': Boolean(reader.fitWidth), 'right-to-left': Boolean(reader.rightToLeft) })
 
-// A PDF's Pairing or Fit-width button, or a CBZ's Right to left: switch it, staying in Bar
-// focus so OK switches it back, and save the new value (if any) for the book.
+// A PDF's Pairing, a PDF's or CBZ's Fit-width, or a CBZ's Right to left: switch it,
+// staying in Bar focus so OK switches it back, and save the new value (if any) for the book.
 const toggleBookSetting = async (name, toggle) => {
     const { book, reader } = session
     try {

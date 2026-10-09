@@ -6,8 +6,8 @@ import kotlinx.serialization.json.JsonPrimitive
 /**
  * The reader's settings, kept in the Library's store. Its look (font, size, theme and page
  * layout) and the owner's reading speed (for time-left estimates) are global for every book
- * and kept with the app's other settings; a PDF's Pairing and Fit-width, and a CBZ's Right to
- * left, are the book's own, kept in its record. The reader owns the values; only these names
+ * and kept with the app's other settings; a PDF's Pairing, a PDF's or CBZ's Fit-width, and a
+ * CBZ's Right to left, are the book's own, kept in its record. The reader owns the values; only these names
  * can be read or written, so the reader never sees the Access Key.
  */
 class ReaderSettings(private val library: Library) {

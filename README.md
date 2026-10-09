@@ -16,6 +16,7 @@ Upload books from the Phone Page: EPUB, PDF and CBZ.
 
 - **CBZ** (comics and manga: a ZIP of page images) opens as two-page Spreads, the cover alone, then 2–3, 4–5. Pages go in natural filename order (`page2` before `page10`), and anything that isn't a JPEG, PNG, GIF or WebP image is skipped. The first page is the Shelf cover. Volumes of a few hundred MB are fine: the TV reads one page at a time from the archive, scales down pages much larger than the screen, and keeps only the Spread on screen and the next one in memory.
 - **Right to left**: manga's Spreads read right to left, the first page on the right (→ still goes forward). Each CBZ has its own Right to left button in the Top Bar, and a book whose `ComicInfo.xml` says `<Manga>YesAndRightToLeft</Manga>` starts with it on.
+- **Fit-width**: when a Spread's lettering is too small to read from the couch, a CBZ's Fit-width button shows one page across the screen; → scrolls down half a screen at a time, then goes on to the next page.
 - **CBR** (RAR) isn't supported. Convert it to CBZ first: extract the RAR (e.g. with 7-Zip) and zip its images, then rename the `.zip` to `.cbz`.
 
 ## Building

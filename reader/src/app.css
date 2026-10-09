@@ -228,7 +228,7 @@ html, body {
     align-items: center;
     column-gap: 48px;
 }
-/* Fit-width: one page across the stage, moved up (pdf-reader.js) to scroll it. */
+/* Fit-width: one page across the stage, moved up (fit-width.js) to scroll it. */
 #stage .pages.fit-width {
     display: block;
     overflow: hidden;
@@ -259,6 +259,17 @@ html, body {
 #stage .comic img {
     max-width: 100%;
     max-height: 100%;
+}
+/* A CBZ page in Fit-width: across the stage's width, as tall as its shape makes it. */
+#stage .comic.fit-width .page {
+    display: block;
+    height: auto;
+}
+#stage .comic.fit-width img {
+    display: block;
+    width: 100%;
+    max-width: none;
+    max-height: none;
 }
 /* An EPUB's view reaches into the side margins, which foliate leaves blank as its
    outer gaps (see epub-reader.js). */

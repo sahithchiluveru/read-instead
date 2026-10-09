@@ -13,17 +13,18 @@ const returnChip = bar.querySelector('.return')
 const RETURN_CHIP_MS = 5000
 let returnChipTimer = 0
 
-// The buttons this book offers, in order (Pairing and Fit-width are PDF-only, Right to
-// left CBZ-only), then the Return chip if there's somewhere to return to.
+// The buttons this book offers, in order (Pairing is PDF-only, Fit-width PDF and CBZ, Right
+// to left CBZ-only), then the Return chip if there's somewhere to return to.
 const buttons = () => [...buttonRow.querySelectorAll('button'), returnChip].filter(button => !button.hidden)
 
-// A freshly opened book: an empty, visible bar with the buttons for its format.
+// A freshly opened book: an empty, visible bar with the buttons for its format (a button's
+// data-format lists the formats it's for).
 export const resetTopBar = format => {
     bar.classList.remove('faded')
     status.textContent = ''
     fill.style.width = '0'
     for (const button of buttonRow.querySelectorAll('[data-format]'))
-        button.hidden = button.dataset.format !== format
+        button.hidden = !button.dataset.format.split(' ').includes(format)
     withdrawReturn()
     blurTopBar()
 }

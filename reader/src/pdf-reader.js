@@ -1,4 +1,5 @@
 import * as pdfjs from '../vendor/pdfjs/build/pdf.min.mjs'
+import { bottomOffset, parsePosition, positionOf, scrolledOffset, scrollPage } from './fit-width.js'
 import { isSinglePage } from './look.js'
 import { LruCache } from './lru.js'
 import { choosePairing, columnsOf, pagesOf, pairPages, spreadIndexOf, spreadLabel } from './pdf-spreads.js'
@@ -20,10 +21,7 @@ const PAIRINGS = ['book', 'paper']
 // so a turn to an already-rendered Spread costs no rendering at all. In the single-page
 // layout, every page is shown alone. The theme tints the pages through app.css.
 //
-// Each book has its own Pairing and Fit-width. In Fit-width one page fills the width of
-// the screen, and →/← scroll it by half a screen before moving to the next/previous page.
-// Its Position is then the page and how far down it's scrolled, as a fraction of the
-// page's height: "<page>@<fraction>" (just "<page>" at the top).
+// Each book has its own Pairing and Fit-width (see fit-width.js).
 export class PdfReader {
     format = 'pdf'
     #container
@@ -236,18 +234,13 @@ export class PdfReader {
         const view = this.#container.clientHeight
         const height = await this.#pageHeight(this.#spread)
         if (shown !== this.#shown || !this.#fitWidth) return false // relaid out meanwhile
-        const bottom = Math.max(height - view, 0)
-        const at = this.#offset * height
-        // Half a pixel of slack absorbs rounding in offset × height.
-        if (direction > 0 ? at < bottom - 0.5 : at > 0.5) {
-            const to = Math.min(Math.max(at + direction * view / 2, 0), bottom)
-            return this.#goTo(this.#spread, to / height)
-        }
+        const offset = scrolledOffset(this.#offset, height, view, direction)
+        if (offset !== null) return this.#goTo(this.#spread, offset)
         const spread = this.#spread + direction
         if (direction > 0 || spread < 0) return this.#goTo(spread)
         const previous = await this.#pageHeight(spread)
         if (shown !== this.#shown || !this.#fitWidth) return false
-        return this.#goTo(spread, Math.max(previous - view, 0) / previous)
+        return this.#goTo(spread, bottomOffset(previous, view))
     }
 
     // The height on screen of a Spread's page in Fit-width, in CSS px (as #draw sizes it).
@@ -267,17 +260,10 @@ export class PdfReader {
         // A blank page keeps its partner on the correct side.
         this.#container.replaceChildren(...canvases.map((canvas, i) => canvas ?? blankLike(canvases[1 - i])))
         this.#container.classList.toggle('fit-width', this.#fitWidth)
-        if (this.#fitWidth) this.#scrollTo(canvases[0], offset)
+        if (this.#fitWidth)
+            scrollPage(canvases[0], parseFloat(canvases[0].style.height), offset, this.#container.clientHeight)
         this.#prefetch(spread)
         this.#report(shown).catch(error => console.error('reporting the location failed', error))
-    }
-
-    // Fit-width: move the page up to show it from offset (a fraction of its height) down,
-    // but never past its bottom.
-    #scrollTo(canvas, offset) {
-        const height = parseFloat(canvas.style.height)
-        const scrolled = Math.min(offset * height, Math.max(height - this.#container.clientHeight, 0))
-        canvas.style.transform = `translateY(${-scrolled}px)`
     }
 
     async #report(shown) {
@@ -289,7 +275,7 @@ export class PdfReader {
         const first = this.#firstPage(spread)
         const last = this.#spreads.length - 1
         this.#onLocation({
-            position: this.#offset ? `${first}@${this.#offset}` : String(first),
+            position: positionOf(first, this.#offset),
             pageLabel: spreadLabel(this.#spreads[spread], this.#doc.numPages),
             progress: last ? spread / last : 1,
             chapter: chapters[chapterIndexAt(chapters, first)]?.title ?? '',
@@ -386,12 +372,6 @@ const fitted = (page, scale) => page.getViewport({ scale: scale * (devicePixelRa
 const cssSize = ({ width, height }) => {
     const dpr = devicePixelRatio || 1
     return { width: Math.floor(width / dpr), height: Math.floor(height / dpr) }
-}
-
-// A Position (or a Contents target: a page number) as its page and scroll offset.
-const parsePosition = position => {
-    const [page, offset] = String(position).split('@')
-    return { page: Number(page), offset: Number(offset) || 0 }
 }
 
 // The index of the outline entry a page belongs to: the one starting nearest before it

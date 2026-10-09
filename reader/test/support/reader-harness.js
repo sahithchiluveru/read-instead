@@ -77,7 +77,7 @@ export const startReader = async (books, covers = {}) => {
             }
             window.savedSettings = { ...settings }
             // Like ReaderSettings, only the reader's own settings are kept, and of a book's own
-            // only Pairing, Fit-width and Right to left.
+            // only Pairing, Fit-width and Right to left (whatever its format).
             const names = ['font', 'size', 'theme', 'layout', 'reading-speed']
             const bookNames = ['pairing', 'fit-width', 'right-to-left']
             window.savedBookSettings = structuredClone(bookSettings)
