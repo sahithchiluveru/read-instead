@@ -1,7 +1,7 @@
 // The web side of the native ↔ WebView boundary. The Android shell injects
 // `ReadInsteadNative` (the Reader session bridge), `ReadInsteadLibrary` (the books on the
 // TV), `ReadInsteadPhone` (the Phone Page link) and `ReadInsteadSettings` (the reader's
-// global settings); in a plain browser none exists and nothing is persisted.
+// settings); in a plain browser none exists and nothing is persisted.
 const native = () => globalThis.ReadInsteadNative
 
 // The saved Position of a book, or null to start from the beginning.
@@ -26,6 +26,11 @@ const settings = () => globalThis.ReadInsteadSettings
 export const savedSettings = () => JSON.parse(settings()?.load() ?? '{}')
 
 export const saveSetting = (name, value) => settings()?.save(name, String(value))
+
+// A book's own saved settings, by name (a PDF's 'pairing' and 'fit-width'), the same way.
+export const savedBookSettings = bookId => JSON.parse(settings()?.loadBook(bookId) ?? '{}')
+
+export const saveBookSetting = (bookId, name, value) => settings()?.saveBook(bookId, name, String(value))
 
 // Report the Reader's state; the native side saves the Position, keeps the screen on
 // while a book is open, and will answer Now Reading from it. Either { open: false } or

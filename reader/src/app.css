@@ -224,6 +224,14 @@ html, body {
     align-items: center;
     column-gap: 48px;
 }
+/* Fit-width: one page across the stage, moved up (pdf-reader.js) to scroll it. */
+#stage .pages.fit-width {
+    display: block;
+    overflow: hidden;
+}
+#stage .pages.fit-width canvas {
+    display: block;
+}
 /* An EPUB's view reaches into the side margins, which foliate leaves blank as its
    outer gaps (see epub-reader.js). */
 #stage .pages foliate-view {

@@ -1,5 +1,5 @@
 import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
-import { loadPosition, reportState } from './bridge.js'
+import { loadPosition, reportState, saveBookSetting, savedBookSettings } from './bridge.js'
 import { closeContents, focusedContentsEntry, moveContentsFocus, openContents } from './contents.js'
 import { closeGoTo, goToTarget, leapGoTo, nudgeGoTo, openGoTo } from './go-to.js'
 import { changeLook, currentLook, loadLook } from './look.js'
@@ -108,11 +108,24 @@ const openLook = name => {
     setMode(name)
 }
 
-// What each Top Bar button does; the rest arrive with later overlays.
+// A PDF's Pairing or Fit-width button: switch it, staying in Bar focus so OK switches it
+// back, and save the new value for the book.
+const toggleBookSetting = async (name, toggle) => {
+    const { book, reader } = session
+    try {
+        saveBookSetting(book.id, name, await toggle(reader))
+    } catch (error) {
+        console.error(error)
+    }
+}
+
+// What each Top Bar button does.
 const barActions = {
     contents: openContentsOverlay,
     font: () => openLook('font'),
     theme: () => openLook('theme'),
+    pairing: () => toggleBookSetting('pairing', reader => reader.togglePairing()),
+    'fit-width': () => toggleBookSetting('fit-width', reader => reader.toggleFitWidth()),
     'go-to'() {
         // A PDF reports its first location a little after the book is ready.
         const { reader, location } = session
@@ -254,7 +267,9 @@ const openBook = async book => {
     const pages = document.createElement('div')
     pages.className = 'pages'
     stage.replaceChildren(pages)
-    opening.reader = new readers[book.format](pages, { onKey, onLocation, look: currentLook() })
+    opening.reader = new readers[book.format](pages, {
+        onKey, onLocation, look: currentLook(), settings: savedBookSettings(book.id),
+    })
     session = opening
     try {
         await opening.reader.open(`/books/${encodeURIComponent(book.id)}`, loadPosition(book.id))

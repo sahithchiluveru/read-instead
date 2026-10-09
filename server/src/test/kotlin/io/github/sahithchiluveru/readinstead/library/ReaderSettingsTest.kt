@@ -3,6 +3,7 @@ package io.github.sahithchiluveru.readinstead.library
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -11,7 +12,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The reader's global settings (font, size, theme, layout), kept in the Library's store. */
+/**
+ * The reader's settings, kept in the Library's store: global ones (font, size, theme,
+ * layout) and a PDF's own (Pairing, Fit-width).
+ */
 class ReaderSettingsTest {
     private val dir = Files.createTempDirectory("read-instead-library").toFile()
     private fun library() = Library(dir, object : Covers {})
@@ -52,5 +56,55 @@ class ReaderSettingsTest {
         assertEquals("secret", library.setting("accessKey"))
         assertNull(settings.saved()["accessKey"])
         assertEquals(JsonObject(emptyMap()), settings.saved())
+    }
+
+    private fun Library.addBook(): String {
+        val added = add("paper.pdf", ByteArrayInputStream("not really a pdf".toByteArray()))
+        return (added as Library.AddResult.Added).book.id
+    }
+
+    private fun ReaderSettings.savedFor(bookId: String) = Json.parseToJsonElement(bookToJson(bookId)) as JsonObject
+
+    @Test
+    fun `a book's own settings are saved with it and survive a restart`() {
+        val library = library()
+        val id = library.addBook()
+        val other = library.add("other.pdf", ByteArrayInputStream("another".toByteArray()))
+            .let { (it as Library.AddResult.Added).book.id }
+        val settings = ReaderSettings(library)
+        assertEquals(JsonObject(emptyMap()), settings.savedFor(id))
+        assertTrue(settings.saveForBook(id, "pairing", "paper"))
+        assertTrue(settings.saveForBook(id, "fit-width", "true"))
+        assertTrue(settings.saveForBook(id, "pairing", "book"))
+
+        val restarted = ReaderSettings(library())
+        assertEquals(
+            JsonObject(mapOf("pairing" to JsonPrimitive("book"), "fit-width" to JsonPrimitive("true"))),
+            restarted.savedFor(id),
+        )
+        assertEquals(JsonObject(emptyMap()), restarted.savedFor(other), "another book keeps its own")
+        assertEquals(JsonObject(emptyMap()), restarted.saved(), "the global settings are untouched")
+    }
+
+    @Test
+    fun `only a book's Pairing and Fit-width can be saved, and only for a book on the Shelf`() {
+        val library = library()
+        val id = library.addBook()
+        val settings = ReaderSettings(library)
+        assertFalse(settings.saveForBook(id, "position", "12"))
+        assertFalse(settings.saveForBook(id, "theme", "dark"))
+        assertFalse(settings.saveForBook("no-such-book", "pairing", "paper"))
+        assertEquals(JsonObject(emptyMap()), settings.savedFor(id))
+        assertEquals(JsonObject(emptyMap()), settings.savedFor("no-such-book"))
+        assertNull(library.book(id)?.position)
+    }
+
+    @Test
+    fun `deleting a book deletes its settings`() {
+        val library = library()
+        val id = library.addBook()
+        ReaderSettings(library).saveForBook(id, "fit-width", "true")
+        library.delete(id)
+        assertEquals(JsonObject(emptyMap()), ReaderSettings(library).savedFor(id))
     }
 }

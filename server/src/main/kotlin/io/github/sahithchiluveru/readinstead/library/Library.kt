@@ -12,7 +12,7 @@ import java.security.MessageDigest
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * The books on the TV: their files, covers and records (metadata, Position, progress),
+ * The books on the TV: their files, covers and records (metadata, Position, progress, PDF settings),
  * plus the app's global settings, all kept under [dir]. Safe to use from any thread.
  */
 class Library(
@@ -135,6 +135,14 @@ class Library(
     /** Saves where the reader is in a book, and how far through it that is (0–1). */
     fun savePosition(id: String, position: String, progress: Double) =
         update(id) { it.copy(position = position, progress = progress) }
+
+    /** Saves one of a book's own settings; false if there's no such book. */
+    @Synchronized
+    fun saveBookSetting(id: String, name: String, value: String): Boolean {
+        if (id !in books) return false
+        update(id) { it.copy(pdfSettings = it.pdfSettings + (name to value)) }
+        return true
+    }
 
     @Synchronized
     fun setting(name: String): String? = settings[name]

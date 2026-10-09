@@ -21,7 +21,8 @@ enum class Format(val extension: String, val mimeType: String) {
 /**
  * A book on the Shelf. Its id is the SHA-256 of the file's contents, so the same book
  * uploaded twice is recognised. [unreadable] books (corrupt, DRM) are kept, so the owner
- * can see them and delete them.
+ * can see them and delete them. [pdfSettings] are the reader's settings for this book alone
+ * (a PDF's Pairing and Fit-width; see [ReaderSettings]).
  */
 @Serializable
 data class Book(
@@ -35,6 +36,7 @@ data class Book(
     val progress: Double = 0.0,
     val unreadable: Boolean = false,
     val coverType: String? = null,
+    val pdfSettings: Map<String, String> = emptyMap(),
 )
 
 /** A cover image and its media type. */

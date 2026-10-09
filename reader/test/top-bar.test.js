@@ -232,18 +232,6 @@ describe('Bar focus', () => {
         await app.close()
     })
 
-    test('OK on a button not built yet does nothing', async () => {
-        const app = await reader.launch()
-        await app.open(pdfBook)
-        await app.press('ArrowUp')
-        await focusButton(app, 'Pairing')
-        const count = await app.stateCount()
-        await pressQuietly(app, 'Enter')
-        assert.equal(await app.stateCount(), count)
-        assert.equal(await focusedButton(app), 'Pairing')
-        await app.close()
-    })
-
     test('Hide bar hides the bar and returns to Reading mode', async () => {
         const app = await reader.launch()
         await app.open(chapters)
