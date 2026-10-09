@@ -62,8 +62,12 @@ interface Covers {
     /** The cover sized for the Shelf, or null if it isn't a usable image. */
     fun shrink(cover: Cover): Cover? = cover
 
-    /** A CBZ page for the screen: one much larger than the screen is scaled down, others are kept as they are. */
-    fun fitPage(page: Cover): Cover = page
+    /**
+     * A CBZ page for the screen: one much larger than the screen is scaled down, others are
+     * kept as they are. [fullWidth] is for Fit-width, where the page fills the screen's width,
+     * so it's kept at least that wide.
+     */
+    fun fitPage(page: Cover, fullWidth: Boolean = false): Cover = page
 }
 
 internal val json = Json {

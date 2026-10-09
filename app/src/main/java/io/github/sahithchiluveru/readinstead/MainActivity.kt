@@ -107,7 +107,8 @@ class MainActivity : ComponentActivity() {
     /**
      * A book's file at /books/<id>. A CBZ is never served whole (volumes run to hundreds of
      * MB): instead its page list is at /books/<id>/pages and each page, read from the
-     * archive on its own, at /books/<id>/pages/<n> (from 1).
+     * archive on its own, at /books/<id>/pages/<n> (from 1); /books/<id>/pages/<n>/full-width
+     * is the page for Fit-width, kept at least the screen's width.
      */
     private fun bookResponse(library: Library, path: String): WebResourceResponse? {
         val parts = path.split('/')
@@ -118,8 +119,8 @@ class MainActivity : ComponentActivity() {
                 runCatching { WebResourceResponse(book.format.mimeType, null, library.file(id)!!.inputStream()) }.getOrNull()
             parts.size == 2 && parts[1] == "pages" ->
                 library.pagesJson(id)?.let { WebResourceResponse("application/json", "utf-8", it.byteInputStream()) }
-            parts.size == 3 && parts[1] == "pages" ->
-                parts[2].toIntOrNull()?.let { library.page(id, it) }
+            parts.size in 3..4 && parts[1] == "pages" && parts.getOrNull(3).let { it == null || it == "full-width" } ->
+                parts[2].toIntOrNull()?.let { library.page(id, it, fullWidth = parts.size == 4) }
                     ?.let { WebResourceResponse(it.type, null, it.bytes.inputStream()) }
             else -> null
         }

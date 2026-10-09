@@ -17,11 +17,13 @@ class ComicPagesTest {
     private val dir = Files.createTempDirectory("read-instead-library").toFile()
     private val fitted = mutableListOf<String>()
 
-    // Stands in for the TV's downscaling: every page served is tagged as fitted.
+    // Stands in for the TV's downscaling: every page served is tagged as fitted, for a
+    // Spread or for the full width.
     private val library = Library(dir, object : Covers {
-        override fun fitPage(page: Cover): Cover {
+        override fun fitPage(page: Cover, fullWidth: Boolean): Cover {
             fitted += String(page.bytes)
-            return Cover("fitted ".toByteArray() + page.bytes, page.type)
+            val tag = if (fullWidth) "full-width " else "fitted "
+            return Cover(tag.toByteArray() + page.bytes, page.type)
         }
     })
 
@@ -73,6 +75,13 @@ class ComicPagesTest {
         assertEquals("image/png", third.type)
         assertContentEquals("fitted ".toByteArray() + FixtureBooks.pageImage("b/10.png"), third.bytes)
         assertEquals(listOf("image of a.jpg", "image of b/10.png"), fitted, "only the pages asked for are read")
+    }
+
+    @Test
+    fun `a page can be fitted to the full screen width, for Fit-width`() {
+        val id = add("vol.cbz", FixtureBooks.cbzOf("a.jpg"))
+        assertContentEquals("full-width ".toByteArray() + FixtureBooks.pageImage("a.jpg"),
+            library.page(id, 1, fullWidth = true)!!.bytes)
     }
 
     @Test

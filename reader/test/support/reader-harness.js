@@ -22,7 +22,8 @@ const viewport = { width: 960, height: 540 }
 // Plays the TV's Library: books are { id: Buffer } served at /books/<id>, covers are
 // { id: string } (SVG) served at /covers/<id>, where the Android shell serves them. A CBZ
 // is { pages: [string (SVG)] } instead: like the Android shell, its page list is served at
-// /books/<id>/pages and each page at /books/<id>/pages/<n> (from 1), never the whole file.
+// /books/<id>/pages and each page at /books/<id>/pages/<n> (from 1), never the whole file;
+// /books/<id>/pages/<n>/full-width is the same page, kept at least the screen's width.
 // requests lists the path of every book request, in order.
 export const startReader = async (books, covers = {}) => {
     // Each test file builds its own copy, so parallel test files don't race on dist/.
@@ -31,7 +32,7 @@ export const startReader = async (books, covers = {}) => {
     const requests = []
     const comicResponse = (comic, rest) => {
         if (rest === '/pages') return [JSON.stringify(comic.pages.map((_, i) => `page${i + 1}.svg`)), types['.json']]
-        const n = Number(rest.match(/^\/pages\/(\d+)$/)?.[1])
+        const n = Number(rest.match(/^\/pages\/(\d+)(\/full-width)?$/)?.[1])
         return [comic.pages[n - 1], types['.svg']]
     }
     const server = createServer(async (req, res) => {

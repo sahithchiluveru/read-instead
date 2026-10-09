@@ -159,12 +159,13 @@ class Library(
 
     /**
      * Page [number] (from 1) of a CBZ, read from the archive on its own and fitted to the
-     * screen ([Covers.fitPage]); null if there's no such page.
+     * screen ([Covers.fitPage]), for a Spread or, [fullWidth], for Fit-width; null if
+     * there's no such page.
      */
-    fun page(id: String, number: Int): Cover? {
+    fun page(id: String, number: Int, fullWidth: Boolean = false): Cover? {
         val file = comicFile(id) ?: return null
         val page = runCatching { CbzInfo.page(file, number) }.getOrNull() ?: return null
-        return runCatching { covers.fitPage(page) }.getOrDefault(page)
+        return runCatching { covers.fitPage(page, fullWidth) }.getOrDefault(page)
     }
 
     private fun comicFile(id: String): File? = book(id)?.takeIf { it.format == Format.CBZ && !it.unreadable }?.let(::fileOf)

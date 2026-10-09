@@ -72,12 +72,15 @@ class AndroidCovers : Covers {
      * Ordinary scans (up to about 2000 px tall) pass through untouched, costing nothing but
      * reading their header.
      */
-    override fun fitPage(page: Cover): Cover {
+    override fun fitPage(page: Cover, fullWidth: Boolean): Cover {
         val bytes = page.bytes
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        // Halved, the page would still be at least the screen's height or width.
-        val halvable = { sample: Int -> bounds.outHeight / sample >= SCREEN_HEIGHT || bounds.outWidth / sample >= SCREEN_WIDTH }
+        // Halved, the page would still be at least the screen's width (in Fit-width, where it
+        // fills the width), or else its height or width (in a Spread).
+        val halvable = { sample: Int ->
+            bounds.outWidth / sample >= SCREEN_WIDTH || !fullWidth && bounds.outHeight / sample >= SCREEN_HEIGHT
+        }
         if (bounds.outWidth <= 0 || !halvable(2)) return page
         val sample = generateSequence(2) { it * 2 }.takeWhile(halvable).last()
         val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,

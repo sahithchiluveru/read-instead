@@ -123,6 +123,7 @@ export class CbzReader {
     async toggleFitWidth() {
         const page = this.#firstPage()
         this.#fitWidth = !this.#fitWidth
+        this.#release(new Set()) // the pages are fetched at another size now
         this.#spreads = pairPages(this.#pairing, this.#pageCount)
         await this.#show(spreadIndexOf(this.#spreads, page))
         return this.#fitWidth
@@ -139,8 +140,10 @@ export class CbzReader {
         return left ?? right
     }
 
+    // In Fit-width a page fills the screen's width, so it's asked for at that width rather
+    // than shrunk to fit a Spread.
     #pageUrl(page) {
-        return `${this.#url}/pages/${page}`
+        return `${this.#url}/pages/${page}${this.#fitWidth ? '/full-width' : ''}`
     }
 
     async #jump(spread, offset = 0) {

@@ -27,7 +27,7 @@ const shown = app => app.page.evaluate(() => {
     return [...document.querySelectorAll('#stage img')].map(img => {
         const box = img.getBoundingClientRect()
         return {
-            page: Number(img.src.match(/\/pages\/(\d+)$/)[1]),
+            page: Number(img.src.match(/\/pages\/(\d+)(\/full-width)?$/)[1]),
             left: (box.left - stage.left) / stage.width,
             right: (box.right - stage.left) / stage.width,
             width: box.width,
@@ -44,6 +44,8 @@ const savedBookSettings = (app, id) => app.page.evaluate(id => window.savedBookS
 const visibleButtons = app => app.page.evaluate(() =>
     [...document.querySelectorAll('#top-bar button')].filter(b => b.checkVisibility()).map(b => b.textContent))
 const rightToLeftPressed = app => app.page.getAttribute('[data-action="right-to-left"]', 'aria-pressed')
+const imageSources = app => app.page.evaluate(() =>
+    [...document.querySelectorAll('#stage img')].map(img => new URL(img.src).pathname).sort())
 const fitWidthPressed = app => app.page.getAttribute('[data-action="fit-width"]', 'aria-pressed')
 const focusedButton = app =>app.page.evaluate(() =>
     document.activeElement.closest('#top-bar') ? document.activeElement.textContent : null)
@@ -274,10 +276,13 @@ describe('Fit-width on a CBZ', () => {
         assert.equal(page.left, 0)
         assert.deepEqual(await savedBookSettings(app, 'comic'), { 'fit-width': 'true' })
         assert.equal(await fitWidthPressed(app), 'true', 'the button shows it is on')
+        assert.deepEqual(await imageSources(app), ['/books/comic/pages/2/full-width'],
+            'a page filling the width is fetched at full width, not shrunk for a Spread')
 
         const spread = await app.press('Enter') // still on Fit-width
         assert.deepEqual(await pagesShown(app), [2, 3])
         assert.equal(spread.pageLabel, 'Pages 2–3 of 9')
+        assert.deepEqual(await imageSources(app), ['/books/comic/pages/2', '/books/comic/pages/3'])
         assert.deepEqual(await savedBookSettings(app, 'comic'), { 'fit-width': 'false' })
         assert.equal(await fitWidthPressed(app), 'false')
         await app.close()
@@ -386,14 +391,14 @@ describe('Fit-width on a CBZ', () => {
         await app.open(book('comic'))
         await app.page.waitForTimeout(300) // let the next page load
         assert.deepEqual(new Set(reader.requests),
-            new Set(['/books/comic/pages', '/books/comic/pages/1', '/books/comic/pages/2']))
+            new Set(['/books/comic/pages', '/books/comic/pages/1/full-width', '/books/comic/pages/2/full-width']))
 
         reader.requests.length = 0
         for (let i = 0; i < 4; i++) await app.press('ArrowRight') // scrolling fetches nothing
         assert.deepEqual(reader.requests, [])
         await app.press('ArrowRight') // to page 2
         await app.page.waitForTimeout(300)
-        assert.deepEqual(reader.requests, ['/books/comic/pages/3'], 'page 2 was ready; only page 3 is fetched')
+        assert.deepEqual(reader.requests, ['/books/comic/pages/3/full-width'], 'page 2 was ready; only page 3 is fetched')
         assert.equal(await app.page.locator('#stage img').count(), 1)
         await app.close()
     })
@@ -427,7 +432,7 @@ describe('Fit-width on a CBZ', () => {
         await app.press('ArrowRight')
         const viewer = await app.press('Enter')
         assert.equal(viewer.mode, 'image-viewer')
-        assert.match(await app.page.getAttribute('#image-viewer img', 'src'), /\/books\/comic\/pages\/1$/)
+        assert.match(await app.page.getAttribute('#image-viewer img', 'src'), /\/books\/comic\/pages\/1\/full-width$/)
         await app.back()
 
         await focusButton(app, 'Go to %')
