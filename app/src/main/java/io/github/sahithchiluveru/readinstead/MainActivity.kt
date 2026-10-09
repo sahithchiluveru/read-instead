@@ -1,6 +1,7 @@
 package io.github.sahithchiluveru.readinstead
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
@@ -16,7 +17,7 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import androidx.webkit.WebViewFeature
 
-private const val TAG = "ReadInstead"
+internal const val TAG = "ReadInstead"
 private const val READER_URL = "https://appassets.androidplatform.net/assets/reader/src/index.html"
 
 /** Thin shell: one fullscreen WebView running the web reader bundled in assets/reader. */
@@ -26,12 +27,16 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // Served from a real https origin so ES modules, workers and fetch() work.
         val assets = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
+
+        // The screen stays awake (no screensaver or ambient mode) only while a book is open.
+        val bridge = ReaderSessionBridge(getSharedPreferences("positions", MODE_PRIVATE)) { open ->
+            runOnUiThread { keepScreenOn(open) }
+        }
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -40,6 +45,9 @@ class MainActivity : ComponentActivity() {
                 WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)
             }
             webViewClient = object : WebViewClientCompat() {
+                override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) =
+                    bridge.onReaderReloaded()
+
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     assets.shouldInterceptRequest(request.url)
             }
@@ -49,6 +57,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
             }
+            addJavascriptInterface(bridge, "ReadInsteadNative")
             isFocusable = true
             isFocusableInTouchMode = true
         }
@@ -65,6 +74,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
+    }
+
+    private fun keepScreenOn(on: Boolean) {
+        val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        if (on) window.addFlags(flag) else window.clearFlags(flag)
     }
 
     override fun onDestroy() {

@@ -16,16 +16,18 @@ Requirements: JDK 17, Node.js 24, and the Android SDK (`local.properties` with `
 Windows PowerShell:
 
 ```powershell
-cd reader; npm ci; npm test; cd ..
+cd reader; npm ci; npx playwright install chromium-headless-shell; npm test; cd ..
 .\gradlew.bat assembleDebug    # → app\build\outputs\apk\debug\app-debug.apk
 ```
 
 macOS / Linux / Git Bash:
 
 ```sh
-cd reader && npm ci && npm test && cd ..
+cd reader && npm ci && npx playwright install chromium-headless-shell && npm test && cd ..
 ./gradlew assembleDebug
 ```
+
+`npm test` includes the Reader-seam tests, which drive the reader in headless Chromium (the engine behind the TV's WebView) with the remote's keys; the Playwright step downloads that browser once.
 
 Gradle also rebuilds the reader (`npm run build`) on every build, so after the first `npm ci` you only need the Gradle command. If JDK 17 isn't your default Java, set `JAVA_HOME` for the session, for example `$env:JAVA_HOME = "$HOME\tools\jdk-17.0.20.1+1"` in PowerShell.
 

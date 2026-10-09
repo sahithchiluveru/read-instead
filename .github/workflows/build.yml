@@ -20,6 +20,10 @@ jobs:
         working-directory: reader
         run: npm ci
 
+      - name: Install headless Chromium for the Reader-seam tests
+        working-directory: reader
+        run: npx playwright install --with-deps chromium-headless-shell
+
       - name: Test reader
         working-directory: reader
         run: npm test

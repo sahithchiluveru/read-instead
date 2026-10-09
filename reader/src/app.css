@@ -57,12 +57,16 @@ html, body {
 #stage {
     position: absolute;
     inset: 44px 48px 27px;
+}
+#stage .pages {
+    width: 100%;
+    height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     column-gap: 48px;
 }
-#stage foliate-view {
+#stage .pages foliate-view {
     width: 100%;
     height: 100%;
 }

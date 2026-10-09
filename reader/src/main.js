@@ -1,3 +1,4 @@
+import { loadPosition, reportState } from './bridge.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
 
@@ -8,47 +9,29 @@ const readerScreen = document.getElementById('reader')
 const stage = document.getElementById('stage')
 const hud = document.getElementById('hud')
 
-let reader = null
+// The open book: { book: { id, format, src }, reader, ready }. Keys only reach the
+// reader once it's ready. Each reader draws into its own element in the stage, so one
+// abandoned mid-open can't touch the next book's pages.
+let session = null
 // Presses that arrive mid-turn are queued (as a net direction) rather than dropped.
 let queuedTurns = 0
 let turning = false
-const turnTimes = []
 
 const arrowDirection = key => ({ ArrowRight: 1, ArrowLeft: -1 })[key] ?? 0
 
 const nextFrame = () => new Promise(resolve =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
-const median = sorted => {
-    const mid = sorted.length / 2
-    return sorted.length % 2 ? sorted[Math.floor(mid)] : Math.round((sorted[mid - 1] + sorted[mid]) / 2)
-}
-
-// Turn latency = key press until the new Spread has been painted.
-const recordTurnLatency = (format, ms) => {
-    turnTimes.push(ms)
-    const sorted = [...turnTimes].sort((a, b) => a - b)
-    const summary = `median ${median(sorted)} ms · max ${sorted.at(-1)} ms · ${turnTimes.length} turns`
-    hud.textContent = `last ${ms} ms · ${summary}`
-    console.log(`[turn] ${format} ${ms}ms ${summary}`)
-}
-
 const runQueuedTurns = async () => {
     if (turning) return
     turning = true
     try {
-        while (reader && queuedTurns !== 0) {
+        while (session?.ready && queuedTurns !== 0) {
             const direction = Math.sign(queuedTurns)
             queuedTurns -= direction
-            const current = reader
-            const start = performance.now()
-            const moved = await (direction > 0 ? current.next() : current.prev())
-            if (!moved) {
-                queuedTurns = 0 // hit the start/end of the book
-                break
-            }
-            await nextFrame()
-            recordTurnLatency(current.format, Math.round(performance.now() - start))
+            const { reader } = session
+            const moved = await (direction > 0 ? reader.next() : reader.prev())
+            if (!moved) queuedTurns = 0 // hit the start/end of the book
         }
     } catch (error) {
         queuedTurns = 0
@@ -58,52 +41,69 @@ const runQueuedTurns = async () => {
     }
 }
 
+// Reading mode: ←/→ turn the Spread, OK does nothing.
 const onKey = e => {
+    if (!session?.ready) return
+    if (e.key === 'Enter') {
+        e.preventDefault()
+        return
+    }
     const direction = arrowDirection(e.key)
-    if (!reader || !direction) return
+    if (!direction) return
     e.preventDefault()
     queuedTurns += direction
     runQueuedTurns()
 }
 
-const openBook = async button => {
-    const { format, src } = button.dataset
+const openBook = async book => {
     home.hidden = true
     readerScreen.hidden = false
-    turnTimes.length = 0
     queuedTurns = 0
     hud.textContent = 'Opening…'
-    const start = performance.now()
-    const opening = new readers[format](stage, onKey)
+    const opening = { book, ready: false, located: false }
+    const report = location => {
+        if (session !== opening) return
+        opening.located ||= Boolean(location)
+        reportState({ open: true, bookId: book.id, format: book.format, mode: 'reading', ...location })
+    }
+    const pages = document.createElement('div')
+    pages.className = 'pages'
+    stage.replaceChildren(pages)
+    opening.reader = new readers[book.format](pages, { onKey, onLocation: report })
+    session = opening
     try {
-        await opening.open(src)
+        await opening.reader.open(book.src, loadPosition(book.id))
         await nextFrame()
-        if (readerScreen.hidden) { // Back was pressed while it was opening
-            opening.close()
+        if (session !== opening) { // Back was pressed while it was opening
+            opening.reader.close()
             return
         }
-        reader = opening
-        const ms = Math.round(performance.now() - start)
-        hud.textContent = `opened in ${ms} ms`
-        console.log(`[open] ${format} ${ms}ms`)
+        opening.ready = true
+        hud.textContent = ''
+        if (!opening.located) report() // readers that don't report a location yet
     } catch (error) {
+        try {
+            opening.reader.close()
+        } catch {}
+        if (session !== opening) return // Back was pressed while it was opening
         hud.textContent = `Couldn't open this book: ${error.message}`
         console.error(error)
-        try {
-            opening.close()
-        } catch {}
     }
     document.body.focus()
 }
 
 const closeBook = () => {
-    try {
-        reader?.close()
-    } catch (error) {
-        console.error(error)
+    if (session?.ready) {
+        try {
+            session.reader.close()
+        } catch (error) {
+            console.error(error)
+        }
     }
-    reader = null
+    session = null
     queuedTurns = 0
+    stage.replaceChildren()
+    reportState({ open: false })
     readerScreen.hidden = true
     home.hidden = false
     home.querySelector('button').focus()
@@ -112,7 +112,7 @@ const closeBook = () => {
 addEventListener('keydown', onKey)
 home.addEventListener('click', e => {
     const button = e.target.closest('button')
-    if (button) openBook(button)
+    if (button) openBook({ ...button.dataset })
 })
 home.addEventListener('keydown', e => {
     const direction = arrowDirection(e.key)
@@ -123,8 +123,10 @@ home.addEventListener('keydown', e => {
 })
 home.querySelector('button').focus()
 
-// Called by the Android shell on Back; returns true if the reader handled it.
 window.readInstead = {
+    // Open a book: { id, format: 'epub' | 'pdf', src }.
+    open: openBook,
+    // Called by the Android shell on Back; returns true if the reader handled it.
     back() {
         if (readerScreen.hidden) return false
         closeBook()
