@@ -6,7 +6,8 @@
 // mean at first, then weighted towards about the last WINDOW samples, so it follows the
 // owner as they speed up or slow down. Outliers are left out: idle gaps (the owner walked
 // away, or the TV was switched off), skimming, Spreads with too little text to tell, and,
-// once the estimate is shown, anything far off it.
+// once the estimate is shown, anything far off it. The estimate is saved as
+// { secondsPerCharacter, samples }.
 
 // Samples needed before an estimate is shown.
 export const MIN_SAMPLES = 5
@@ -16,6 +17,8 @@ const MIN_CHARACTERS = 200
 // an idle gap, faster is skimming.
 const SLOWEST = 2
 const FASTEST = 60
+// However much text a Spread holds, longer than this on it is an idle gap too.
+const LONGEST_SECONDS = 10 * 60
 // Once the estimate is shown, a sample more than this many times slower or faster is an outlier.
 const OUTLIER_FACTOR = 3
 // How many recent samples the running average weighs once it has that many.
@@ -44,7 +47,8 @@ export class ReadingSpeed {
     // the Spread before it by a → turn, which ends that Spread's sample; anything else (a
     // ← turn, a jump, opening the book) only starts timing this one.
     shown(characters, { turned = false } = {}) {
-        if (turned && this.#spread) this.#sample(this.#spread.characters, (this.#now() - this.#spread.since) / 1000)
+        const spread = this.#spread
+        if (turned && spread) this.#sample(spread.characters, (this.#now() - spread.since) / 1000)
         this.#spread = { characters, since: this.#now() }
     }
 
@@ -66,7 +70,7 @@ export class ReadingSpeed {
     }
 
     #sample(characters, seconds) {
-        if (characters < MIN_CHARACTERS || seconds <= 0) return
+        if (characters < MIN_CHARACTERS || seconds <= 0 || seconds > LONGEST_SECONDS) return
         const perSecond = characters / seconds
         if (perSecond < SLOWEST || perSecond > FASTEST) return
         const secondsPerCharacter = seconds / characters
@@ -75,7 +79,8 @@ export class ReadingSpeed {
             if (ratio > OUTLIER_FACTOR || ratio < 1 / OUTLIER_FACTOR) return
         }
         this.#samples++
-        this.#secondsPerCharacter += (secondsPerCharacter - this.#secondsPerCharacter) / Math.min(this.#samples, WINDOW)
+        const weight = 1 / Math.min(this.#samples, WINDOW)
+        this.#secondsPerCharacter += (secondsPerCharacter - this.#secondsPerCharacter) * weight
         this.#onChange(this.toJSON())
     }
 }

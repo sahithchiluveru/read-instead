@@ -254,8 +254,9 @@ export class EpubReader {
     }
 }
 
-// Characters from the start of the Spread's range to the end of its chapter (a reflowable
-// chapter is one document), with whitespace collapsed as in the page text.
+// Characters from the start of the Spread's range to the end of its chapter document,
+// whitespace collapsed. Close to the length of the page text (which also breaks lines between
+// paragraphs), but quick enough to count a whole chapter on every turn.
 const charactersFrom = visible => {
     const doc = visible.startContainer.ownerDocument
     const rest = rangeOfBody(doc)

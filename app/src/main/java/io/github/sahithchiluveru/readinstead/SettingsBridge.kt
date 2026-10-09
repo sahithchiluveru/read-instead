@@ -16,7 +16,7 @@ class SettingsBridge(private val settings: ReaderSettings) {
     /** The saved settings as a JSON object of strings; one never saved is missing. */
     @JavascriptInterface
     fun load(): String {
-        saves.submit {}.get()
+        awaitSaves()
         return settings.toJson()
     }
 
@@ -29,7 +29,7 @@ class SettingsBridge(private val settings: ReaderSettings) {
     /** A PDF's own saved settings (Pairing, Fit-width), as [load]. */
     @JavascriptInterface
     fun loadPdf(bookId: String): String {
-        saves.submit {}.get()
+        awaitSaves()
         return settings.pdfToJson(bookId)
     }
 
@@ -37,5 +37,9 @@ class SettingsBridge(private val settings: ReaderSettings) {
     @JavascriptInterface
     fun savePdf(bookId: String, name: String, value: String) {
         saves.execute { settings.savePdf(bookId, name, value) }
+    }
+
+    private fun awaitSaves() {
+        saves.submit {}.get()
     }
 }

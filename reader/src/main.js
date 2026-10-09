@@ -1,5 +1,7 @@
 import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
-import { loadPosition, reportState, savePdfSetting, saveSetting, savedPdfSettings, savedSettings } from './bridge.js'
+import {
+    loadPosition, reportState, savePdfSetting, saveReadingSpeed, savedPdfSettings, savedReadingSpeed,
+} from './bridge.js'
 import { closeContents, focusedContentsEntry, moveContentsFocus, openContents } from './contents.js'
 import { closeGoTo, goToTarget, leapGoTo, nudgeGoTo, openGoTo } from './go-to.js'
 import { changeLook, currentLook, loadLook } from './look.js'
@@ -21,24 +23,16 @@ const stage = document.getElementById('stage')
 const hud = document.getElementById('hud')
 
 // The owner's reading speed, one for every book, saved with the reader's settings.
-const parseSpeed = json => {
-    try {
-        return JSON.parse(json)
-    } catch {
-        return null
-    }
-}
-const readingSpeed = new ReadingSpeed(parseSpeed(savedSettings()['reading-speed']), {
-    onChange: speed => saveSetting('reading-speed', JSON.stringify(speed)),
-})
+const readingSpeed = new ReadingSpeed(savedReadingSpeed(), { onChange: saveReadingSpeed })
 
-// The open book: { book: { id, format, ... }, reader, ready, mode, location, returnTo, turn }.
+// The open book: { book: { id, format, ... }, reader, ready, mode, location, returnTo,
+// pendingTurn }.
 // Keys only reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread),
 // 'bar' (Bar focus: ←/→ move between the Top Bar's buttons), or an overlay opened from
 // it: 'contents', 'go-to', 'font' or 'theme'. location is the Spread on screen, and
-// returnTo the one before the last jump, which the Return chip goes back to. turn is the
-// direction of a turn whose new Spread hasn't been reported yet (0 for none), so the reading
-// speed can tell a → turn from a jump.
+// returnTo the one before the last jump, which the Return chip goes back to. pendingTurn is
+// the direction of a turn whose new Spread hasn't been reported yet (0 for none), so the
+// reading speed can tell a → turn from a jump.
 // Each reader draws into its own element in the stage, so one abandoned mid-open can't
 // touch the next book's pages.
 let session = null
@@ -59,11 +53,11 @@ const runQueuedTurns = async () => {
             const direction = Math.sign(queuedTurns)
             queuedTurns -= direction
             const turning = session
-            turning.turn = direction
+            turning.pendingTurn = direction
             const moved = await (direction > 0 ? turning.reader.next() : turning.reader.prev())
             if (!moved) { // hit the start/end of the book
                 queuedTurns = 0
-                turning.turn = 0
+                turning.pendingTurn = 0
             }
         }
     } catch (error) {
@@ -96,7 +90,7 @@ const jump = async (navigate, { returning = false } = {}) => {
     const from = jumping.location
     setMode('reading')
     queuedTurns = 0
-    jumping.turn = 0
+    jumping.pendingTurn = 0
     let moved
     try {
         moved = await navigate(jumping.reader)
@@ -277,8 +271,8 @@ const onKey = e => {
 // read in Reading mode and left by a → turn. In Fit-width, → scrolls part of a page
 // rather than turning a whole Spread, so it can't be timed.
 const timeSpread = (open, { left, right }) => {
-    const turned = open.turn > 0
-    open.turn = 0
+    const turned = open.pendingTurn > 0
+    open.pendingTurn = 0
     if (open.mode !== 'reading' || open.reader.fitWidth) readingSpeed.interrupt()
     else readingSpeed.shown(left.length + right.length, { turned })
 }
@@ -290,7 +284,7 @@ const openBook = async book => {
     queuedTurns = 0
     hud.textContent = 'Opening…'
     resetTopBar(book.format)
-    const opening = { book, ready: false, mode: 'reading', location: null, returnTo: null, turn: 0 }
+    const opening = { book, ready: false, mode: 'reading', location: null, returnTo: null, pendingTurn: 0 }
     const onLocation = location => {
         if (session !== opening) return
         timeSpread(opening, location)

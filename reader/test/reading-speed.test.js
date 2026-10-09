@@ -104,3 +104,11 @@ test('a short remainder still reads as a minute, and nothing left reads as nothi
     assert.equal(speed.minutesFor(0), null)
     assert.equal(speed.minutesFor(null), null)
 })
+
+test('a long pause on a Spread full of text is still an idle gap', () => {
+    const { speed, read } = reader()
+    read(15 * 60, 4000) // a plausible speed for so much text, but a quarter of an hour on one Spread
+    read(200) // the next one, read at the usual 20 characters a second
+    for (let i = 0; i < MIN_SAMPLES - 1; i++) read(50)
+    assert.equal(speed.minutesFor(6000), 5)
+})

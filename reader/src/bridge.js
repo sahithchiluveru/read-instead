@@ -20,12 +20,24 @@ export const phoneLink = () => parseLink(phone()?.link())
 // Reset the Access Key, locking out every connected phone; returns the new link.
 export const resetPhoneKey = () => parseLink(phone()?.resetKey())
 
-// The reader's saved settings, by name ('font', 'size', 'theme', 'layout', and the owner's
-// 'reading-speed' as JSON); a setting never saved is missing. Values are strings.
+// The reader's saved settings, by name ('font', 'size', 'theme', 'layout'); a setting
+// never saved is missing. Values are strings.
 const settings = () => globalThis.ReadInsteadSettings
 export const savedSettings = () => JSON.parse(settings()?.load() ?? '{}')
 
 export const saveSetting = (name, value) => settings()?.save(name, String(value))
+
+// The owner's reading speed, kept among the settings as JSON (see reading-speed.js), or null
+// if never saved or unreadable.
+export const savedReadingSpeed = () => {
+    try {
+        return JSON.parse(savedSettings()['reading-speed'] ?? 'null')
+    } catch {
+        return null
+    }
+}
+
+export const saveReadingSpeed = speed => saveSetting('reading-speed', JSON.stringify(speed))
 
 // A PDF's own saved settings, by name ('pairing', 'fit-width'), the same way.
 export const savedPdfSettings = bookId => JSON.parse(settings()?.loadPdf(bookId) ?? '{}')

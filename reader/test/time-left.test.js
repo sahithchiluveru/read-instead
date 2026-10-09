@@ -96,7 +96,7 @@ describe('time left in chapter', () => {
         await app.close()
     })
 
-    test('a saved speed is used at once, across books and restarts', async () => {
+    test('a saved speed is used from the first Spread after a restart', async () => {
         const app = await reader.launch({ settings: learned() })
         const state = await app.open(numbered)
         assert.equal(state.minutesLeftInChapter, minutesFor(state.charactersLeftInChapter))

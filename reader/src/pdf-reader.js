@@ -44,8 +44,8 @@ export class PdfReader {
     #cache = newCache()
     #pageCharacters = new Map() // characters of text on each page whose text has been read
 
-    // onLocation receives { position, pageLabel, progress, chapter, charactersLeftInChapter, left,
-    // right } whenever a new Spread is on screen. The Position is the first page number shown (and in Fit-width,
+    // onLocation receives { position, pageLabel, progress, chapter, charactersLeftInChapter,
+    // left, right } whenever a new Spread is on screen. The Position is the first page number shown (and in Fit-width,
     // the scroll offset). look is the reader's look to start with; only its layout matters
     // here. settings are the book's own saved settings: 'pairing' and 'fit-width'.
     constructor(container, { onLocation, look, settings = {} }) {
@@ -297,14 +297,16 @@ export class PdfReader {
 
     // Characters from the first page on screen to the end of its chapter (up to where the
     // next outline entry starts), or null before the first chapter. Reading every page's text
-    // would hold up the turn, so pages not yet read count as the average page read so far.
+    // would hold up the turn, so a page not yet read counts as the average page with text read
+    // so far (a cover or a blank page would drag it down).
     #charactersLeftInChapter(chapters, first) {
         const index = chapterIndexAt(chapters, first)
         if (index < 0) return null
         const start = chapters[index].page
-        const end = Math.min(this.#doc.numPages + 1, ...chapters.map(({ page }) => page).filter(page => page > start))
-        const known = [...this.#pageCharacters.values()]
-        const perPage = known.reduce((sum, count) => sum + count, 0) / known.length || 0
+        const later = chapters.map(({ page }) => page).filter(page => page > start)
+        const end = Math.min(this.#doc.numPages + 1, ...later)
+        const withText = [...this.#pageCharacters.values()].filter(count => count > 0)
+        const perPage = withText.reduce((sum, count) => sum + count, 0) / withText.length || 0
         let characters = 0
         for (let page = first; page < end; page++) characters += this.#pageCharacters.get(page) ?? perPage
         return Math.round(characters)
