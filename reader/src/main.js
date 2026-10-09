@@ -66,20 +66,21 @@ const setMode = (mode, action) => {
     report()
 }
 
-// Go somewhere else in the book from an overlay, back in Reading mode, and offer the
-// Return chip for the Spread left behind.
-const jump = async navigate => {
+// Go somewhere else in the book, back in Reading mode. A jump that moved offers the
+// Return chip for the Spread left behind, unless it was the Return itself.
+const jump = async (navigate, { returning = false } = {}) => {
     const jumping = session
     const from = jumping.location
     setMode('reading')
     queuedTurns = 0
+    let moved
     try {
-        await navigate(jumping.reader)
+        moved = await navigate(jumping.reader)
     } catch (error) {
         console.error(error)
         return
     }
-    if (session !== jumping || !from) return
+    if (returning || !moved || session !== jumping || !from) return
     jumping.returnTo = from
     offerReturn(from.progress)
 }
@@ -103,6 +104,7 @@ const openContentsOverlay = async () => {
 const barActions = {
     contents: openContentsOverlay,
     'go-to'() {
+        // A PDF reports its first location a little after the book is ready.
         const { reader, location } = session
         openGoTo(location ?? { progress: 0, chapter: '' }, fraction => reader.chapterAt(fraction))
         setMode('go-to')
@@ -116,9 +118,7 @@ const barActions = {
         const { position } = session.returnTo
         session.returnTo = null
         withdrawReturn()
-        setMode('reading')
-        queuedTurns = 0
-        session.reader.goTo(position).catch(error => console.error(error))
+        jump(reader => reader.goTo(position), { returning: true })
     },
 }
 

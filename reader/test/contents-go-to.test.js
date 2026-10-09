@@ -281,6 +281,35 @@ describe('the Return chip', () => {
         await app.close()
     })
 
+    test('returns from a Go to % jump in an EPUB', async () => {
+        const app = await reader.launch()
+        await app.open(chapters)
+        const before = await app.press('ArrowRight')
+        await openFromBar(app, 'Go to %')
+        for (let i = 0; i < 10; i++) await app.page.keyboard.press('ArrowUp')
+        await app.press('Enter')
+        await app.page.waitForFunction(() => window.reportedStates.at(-1).chapter === 'Chapter Three')
+        await app.press('ArrowUp')
+        await app.press('Enter')
+        await app.page.waitForFunction(position =>
+            window.reportedStates.at(-1).position === position, before.position)
+        assert.equal((await app.state()).left, before.left)
+        await app.close()
+    })
+
+    test('a jump to the Spread already on screen offers none', async () => {
+        const app = await reader.launch()
+        await app.open(pdfBook)
+        await app.press('ArrowRight') // pages 2–3, where Chapter One starts
+        await openFromBar(app, 'Contents')
+        const reading = await app.press('Enter')
+        assert.equal(reading.mode, 'reading')
+        await app.page.waitForTimeout(300)
+        assert.equal(firstLine((await app.state()).left), 'Page 2')
+        assert.equal(await returnChip(app), null)
+        await app.close()
+    })
+
     test('it leaves the bar after a few seconds but stays reachable in Bar focus', async () => {
         const app = await reader.launch()
         await app.open(pdfBook)

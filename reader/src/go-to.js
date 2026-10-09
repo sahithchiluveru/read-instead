@@ -11,6 +11,7 @@ let startPercent = 0
 let startChapter = ''
 let chapterAt = null // fraction → Promise of the chapter's label
 let repeats = 0 // key repeats in the current hold of ←/→
+let heldDirection = 0
 
 // A held key repeats about 20 times a second: 1% per repeat for the first half second,
 // then 2%, then 5%, so the whole book is a few seconds' hold away.
@@ -41,7 +42,8 @@ const show = value => {
 
 // ←/→: direction -1 or 1; repeat is whether the key is being held.
 export const nudgeGoTo = (direction, repeat) => {
-    repeats = repeat ? repeats + 1 : 0
+    repeats = repeat && direction === heldDirection ? repeats + 1 : 0
+    heldDirection = direction
     show(percent + direction * holdStep(repeats))
 }
 

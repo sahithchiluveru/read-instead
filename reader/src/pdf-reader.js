@@ -85,13 +85,19 @@ export class PdfReader {
         return chapters[chapterIndexAt(chapters, this.#firstPage(this.#spreadAt(fraction)))]?.title ?? ''
     }
 
-    // Jump to a page: a Contents entry's target or a Position.
+    // Jump to a page: a Contents entry's target or a Position. Like a turn, resolves to
+    // whether the Spread changed.
     goTo(target) {
-        return this.#goTo(spreadIndexOf(this.#spreads, Number(target)))
+        return this.#jump(spreadIndexOf(this.#spreads, Number(target)))
     }
 
     goToFraction(fraction) {
-        return this.#goTo(this.#spreadAt(fraction))
+        return this.#jump(this.#spreadAt(fraction))
+    }
+
+    async #jump(spread) {
+        if (spread === this.#spread) return false
+        return this.#goTo(spread)
     }
 
     // The inverse of the reported progress.

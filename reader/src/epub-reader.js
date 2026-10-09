@@ -145,7 +145,8 @@ export class EpubReader {
         return this.#view.getProgressOf(index).tocItem?.label?.trim() ?? ''
     }
 
-    // Jump to a Contents entry's target or a Position (a CFI).
+    // Jump to a Contents entry's target or a Position (a CFI). Like a turn, resolves to
+    // whether the Spread changed.
     goTo(target) {
         return this.#jump(() => this.#view.goTo(target))
     }
@@ -154,12 +155,15 @@ export class EpubReader {
         return this.#jump(() => this.#view.goToFraction(fraction))
     }
 
-    // foliate ignores navigation while a turn settles, so a jump waits it out too.
+    // foliate ignores navigation while a turn settles, so a jump waits it out too. foliate
+    // logs and swallows a target it can't resolve, which then shows no new Spread.
     async #jump(navigate) {
         await this.#navigating
+        const before = this.#shown
         const jumped = navigate()
         this.#navigating = jumped.catch(() => {})
         await jumped
+        return this.#shown !== before
     }
 
     prev() {
