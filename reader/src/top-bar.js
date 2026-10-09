@@ -33,7 +33,13 @@ export const showTopBarLocation = (format, location) => {
     fill.style.width = `${location.progress * 100}%`
 }
 
-export const toggleTopBar = () => bar.classList.toggle('faded')
+// Show which on/off buttons are on ({ action: boolean }), so their state is visible.
+export const showTopBarSwitches = switches => {
+    for (const [action, on] of Object.entries(switches))
+        buttonRow.querySelector(`[data-action="${action}"]`).setAttribute('aria-pressed', on)
+}
+
+export const toggleTopBar = () =>bar.classList.toggle('faded')
 
 export const hideTopBar = () => bar.classList.add('faded')
 

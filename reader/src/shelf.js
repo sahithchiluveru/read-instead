@@ -29,6 +29,7 @@ const tileFor = book => {
         const img = element('img')
         img.alt = ''
         img.onerror = titleCard
+        img.onload = () => img.classList.toggle('wide', img.naturalWidth > img.naturalHeight)
         img.src = `/covers/${encodeURIComponent(book.id)}`
         cover.append(img)
     } else {

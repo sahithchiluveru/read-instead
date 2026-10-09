@@ -13,12 +13,13 @@ const chapters = record('chapters', 'Chapters Fixture', {
 const paper = record('paper', 'A Paper', { format: 'pdf' })
 const broken = record('broken', 'broken', { unreadable: true })
 const coverSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect width="200" height="300" fill="#a65a2a"/></svg>'
-const address = '192.168.1.50:8765'
+const wideCoverSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120"><rect width="400" height="120" fill="#2a211a"/></svg>'
+const address ='192.168.1.50:8765'
 const links = [{ address, url: `http://${address}/?k=the-key`, error: null }]
 
 let reader
 before(async () => {
-    reader = await startReader({ chapters: chaptersEpub(), paper: paperPdf() }, { chapters: coverSvg })
+    reader = await startReader({ chapters: chaptersEpub(), paper: paperPdf() }, { chapters: coverSvg, wide: wideCoverSvg })
 })
 after(() => reader.close())
 
@@ -29,7 +30,14 @@ const tiles = app => app.page.evaluate(() => [...document.querySelectorAll('#she
     progress: tile.querySelector('.progress span')?.style.width,
     note: tile.querySelector('.unreadable')?.textContent,
 })))
-const focused = app => app.page.evaluate(() => document.activeElement.dataset.id ?? document.activeElement.id)
+// How a tile's cover image fits its 2:3 box, once the image has loaded.
+const coverFit = (app, id) => app.page.evaluate(async id => {
+    const img = document.querySelector(`[data-id="${id}"] img`)
+    await img.decode()
+    await new Promise(requestAnimationFrame)
+    return getComputedStyle(img).objectFit
+}, id)
+const focused = app =>app.page.evaluate(() => document.activeElement.dataset.id ?? document.activeElement.id)
 const shelfVisible = app => app.page.isVisible('#shelf')
 // The phone deletes a book: the native Library drops it, then tells the reader.
 const deleteBook = (app, id) => app.page.evaluate(id => {
@@ -56,7 +64,14 @@ describe('the Shelf', () => {
             return { src: new URL(img.src).pathname, width: img.naturalWidth }
         })
         assert.deepEqual(cover, { src: '/covers/chapters', width: 200 })
+        assert.equal(await coverFit(app, 'chapters'), 'cover', 'a portrait cover fills its tile')
         assert.equal(await app.back(), false) // Back on the Shelf leaves the app
+        await app.close()
+    })
+
+    test('a wide cover (a comic whose first page is a banner) shows whole, not cropped', async () => {
+        const app = await reader.launch({ library: [{ ...chapters, id: 'wide' }], links })
+        assert.equal(await coverFit(app, 'wide'), 'contain')
         await app.close()
     })
 

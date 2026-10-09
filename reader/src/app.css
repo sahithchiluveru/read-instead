@@ -88,6 +88,10 @@ html, body {
     height: 100%;
     object-fit: cover;
 }
+/* A wide cover (a comic opening on a banner) shows whole rather than cropped to a sliver. */
+.tile img.wide {
+    object-fit: contain;
+}
 .tile .title-card {
     padding: 10px;
     font-size: 15px;
@@ -361,6 +365,10 @@ html, body {
     background: var(--text);
     color: var(--bg);
     transform: scale(1.05);
+}
+/* An on/off button that's on (Fit-width, Right to left) carries a check mark. */
+#top-bar button[aria-pressed="true"]::before {
+    content: '✓ ';
 }
 /* The Return chip: a small pill at the right of the band, shown for a few seconds after a
    jump and in Bar focus (where it's the last stop) until used. */

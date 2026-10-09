@@ -14,7 +14,7 @@ import { ReadingSpeed } from './reading-speed.js'
 import { bookAdded, bookDeleted, initShelf, renderShelf } from './shelf.js'
 import {
     blurTopBar, focusTopBar, focusedTopBarAction, hideTopBar, moveTopBarFocus, offerReturn, resetTopBar,
-    showTopBarLocation, toggleTopBar, withdrawReturn,
+    showTopBarLocation, showTopBarSwitches, toggleTopBar, withdrawReturn,
 } from './top-bar.js'
 
 const readers = { pdf: PdfReader, epub: EpubReader, cbz: CbzReader }
@@ -127,12 +127,17 @@ const openLook = name => {
     setMode(name)
 }
 
+// Mark the Top Bar's on/off buttons (Fit-width, Right to left) with the book's state.
+const showSwitches = reader =>
+    showTopBarSwitches({ 'fit-width': Boolean(reader.fitWidth), 'right-to-left': Boolean(reader.rightToLeft) })
+
 // A PDF's Pairing or Fit-width button, or a CBZ's Right to left: switch it, staying in Bar
 // focus so OK switches it back, and save the new value (if any) for the book.
 const toggleBookSetting = async (name, toggle) => {
     const { book, reader } = session
     try {
         const value = await toggle(reader)
+        showSwitches(reader)
         if (value !== null) saveBookSetting(book.id, name, value)
     } catch (error) {
         console.error(error)
@@ -330,6 +335,7 @@ const openBook = async book => {
             return
         }
         opening.ready = true
+        showSwitches(opening.reader)
         hud.textContent = ''
     } catch (error) {
         try {

@@ -37,6 +37,10 @@ export class CbzReader {
         container.classList.add('comic')
     }
 
+    get rightToLeft() {
+        return this.#rightToLeft
+    }
+
     get #pairing() {
         return isSinglePage(this.#look) ? 'single' : 'book'
     }

@@ -34,7 +34,8 @@ const statusText = app => app.page.textContent('#top-bar .status')
 const savedBookSettings = (app, id) => app.page.evaluate(id => window.savedBookSettings[id], id)
 const visibleButtons = app => app.page.evaluate(() =>
     [...document.querySelectorAll('#top-bar button')].filter(b => b.checkVisibility()).map(b => b.textContent))
-const focusedButton = app => app.page.evaluate(() =>
+const rightToLeftPressed = app => app.page.getAttribute('[data-action="right-to-left"]', 'aria-pressed')
+const focusedButton = app =>app.page.evaluate(() =>
     document.activeElement.closest('#top-bar') ? document.activeElement.textContent : null)
 
 // From Reading mode, go into Bar focus on a Top Bar button.
@@ -145,10 +146,22 @@ describe('reading a CBZ', () => {
         assert.equal(mirrored.position, '2')
         assert.deepEqual(await pagesShown(app), [3, 2])
         assert.deepEqual(await savedBookSettings(app, 'comic'), { 'right-to-left': 'true' })
+        assert.equal(await rightToLeftPressed(app), 'true', 'the button shows it is on')
 
         await app.press('Enter')
         assert.deepEqual(await pagesShown(app), [2, 3])
         assert.deepEqual(await savedBookSettings(app, 'comic'), { 'right-to-left': 'false' })
+        assert.equal(await rightToLeftPressed(app), 'false')
+        await app.close()
+    })
+
+    test('the Right to left button shows a saved choice when the book opens', async () => {
+        const app = await reader.launch({ bookSettings: rightToLeft })
+        await app.open(book('manga'))
+        assert.equal(await rightToLeftPressed(app), 'true')
+        await app.back()
+        await app.open(book('comic'))
+        assert.equal(await rightToLeftPressed(app), 'false', 'another book starts from its own setting')
         await app.close()
     })
 
