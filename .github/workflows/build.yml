@@ -7,6 +7,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      # To publish GitHub Releases from main.
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -42,3 +45,54 @@ jobs:
         with:
           name: read-instead-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      # Releases: every push to main builds a release APK signed with the one release key
+      # (from repository secrets) and publishes it as a GitHub Release, so each one installs over
+      # the last on the TV. See "Releases" in the README.
+      - name: Check for the release signing secrets
+        id: signing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=No release published::The release signing secrets (RELEASE_KEYSTORE_BASE64, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) aren't all set, so the signed release build and GitHub Release were skipped. See Releases in the README."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the signed release APK
+        if: steps.signing.outputs.present == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          READ_INSTEAD_KEYSTORE: ${{ runner.temp }}/release.jks
+          READ_INSTEAD_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          READ_INSTEAD_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          READ_INSTEAD_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          # Increases with every run of this workflow, so each release upgrades the last.
+          # (It restarts at 1 if this workflow file is renamed.)
+          READ_INSTEAD_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          trap 'rm -f "$READ_INSTEAD_KEYSTORE"' EXIT
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$READ_INSTEAD_KEYSTORE"
+          ./gradlew assembleRelease
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
+          cp app/build/outputs/apk/release/app-release.apk read-instead.apk
+
+      - name: Publish the GitHub Release
+        if: steps.signing.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v0.1.${{ github.run_number }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::notice title=Release exists::$TAG was already published by an earlier attempt of this run."
+            exit 0
+          fi
+          # The asset keeps one name, so .../releases/latest/download/read-instead.apk always
+          # points at the newest release.
+          gh release create "$TAG" read-instead.apk             --target "$GITHUB_SHA"             --title "Read Instead $TAG"             --notes "Built from $GITHUB_SHA: $(git log -1 --format=%s)"             --latest

@@ -42,6 +42,72 @@ Gradle also rebuilds the reader (`npm run build`) on every build, so after the f
 
 GitHub Actions runs the same steps on every push. You can download the APK from the run's **read-instead-debug-apk** artifact.
 
+`assembleRelease` works without the release key too, but it builds `app-release-unsigned.apk`, which the TV won't install. Use the debug APK for local testing.
+
+## Releases
+
+Every push to `main` builds a release APK, signs it with the one release key, and publishes it as a [GitHub Release](https://github.com/sahithchiluveru/read-instead/releases) named `v0.1.<run number>`. Its `versionCode` is the workflow run number, so each release is newer than the last and installs over it, keeping your books and Positions. Until the signing secrets below are set, the workflow skips this and shows a "No release published" notice.
+
+### One-time setup: the release key
+
+Android only installs an update over an existing app if both are signed with the same key. So there is one release key, made once and kept forever.
+
+1. Generate the keystore (`keytool` comes with the JDK, in `$JAVA_HOME/bin`). Choose a strong password and use it for both prompts:
+   ```sh
+   keytool -genkeypair -v -keystore read-instead-release.jks -alias read-instead -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Read Instead"
+   ```
+   Don't put it in the repo; `.gitignore` already ignores `*.jks`.
+2. Add four repository secrets under **GitHub → Settings → Secrets and variables → Actions → New repository secret**:
+
+   | Secret | Value |
+   | --- | --- |
+   | `RELEASE_KEYSTORE_BASE64` | The keystore file, base64-encoded (below) |
+   | `RELEASE_KEYSTORE_PASSWORD` | The keystore password |
+   | `RELEASE_KEY_ALIAS` | `read-instead` |
+   | `RELEASE_KEY_PASSWORD` | The key password (the same one, unless you chose another) |
+
+   To base64-encode the keystore and copy it to the clipboard:
+   ```powershell
+   # Windows PowerShell
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD
+ead-instead-release.jks")) | Set-Clipboard
+   ```
+   ```sh
+   base64 -i read-instead-release.jks | pbcopy        # macOS
+   base64 -w 0 read-instead-release.jks > keystore.b64  # Linux; paste the file's contents, then delete it
+   ```
+   Or, with the [GitHub CLI](https://cli.github.com/) in the repo folder, skip the clipboard (Git Bash, macOS or Linux):
+   ```sh
+   base64 read-instead-release.jks | gh secret set RELEASE_KEYSTORE_BASE64
+   gh secret set RELEASE_KEYSTORE_PASSWORD   # prompts for the value
+   gh secret set RELEASE_KEY_ALIAS --body read-instead
+   gh secret set RELEASE_KEY_PASSWORD
+   ```
+3. **Keep an offline backup** of `read-instead-release.jks` and its password, e.g. on a USB stick and in a password manager. If the key is lost, no new release can install over the old app: you'd have to uninstall it first, and uninstalling deletes every book and Position on the TV.
+
+To sign a release build locally, set the same values as environment variables or Gradle properties (for example in `~/.gradle/gradle.properties`, never in the repo): `READ_INSTEAD_KEYSTORE` (the keystore's path), `READ_INSTEAD_KEYSTORE_PASSWORD`, `READ_INSTEAD_KEY_ALIAS` and `READ_INSTEAD_KEY_PASSWORD`, then run `./gradlew assembleRelease`.
+
+If the app is ever published on Google Play, enroll this same key in [Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756) (upload your existing key rather than letting Google generate one), so the Play version can update the sideloaded one.
+
+## Installing on the TV (Downloader)
+
+One-time TV setup:
+
+1. Install **Downloader** (by AFTVnews) from the Google Play Store on the TV.
+2. **Settings → System → About**, then press OK on **Android TV OS build** 7 times to enable Developer options.
+3. **Settings → Apps → Security & restrictions → Install unknown apps** (on some TVs: **Settings → Privacy → Security & restrictions**): turn on **Downloader**.
+4. Give the TV a fixed IP address, so the Phone Page bookmark on your phone keeps working: in your router's admin page (usually `http://192.168.0.1` or `http://192.168.1.1`), find the **DHCP reservation** (also called *address reservation* or *static lease*) setting, pick the TV from the list of connected devices (its MAC address is under **Settings → Network & Internet** on the TV), and reserve its current address. The steps differ by router; search for your router model plus "DHCP reservation".
+
+To install or update, open Downloader and enter this URL, which always points at the latest release:
+
+```
+https://github.com/sahithchiluveru/read-instead/releases/latest/download/read-instead.apk
+```
+
+Downloader downloads the APK; choose **Install**, then **Done**, and delete the APK when Downloader offers to. The app appears in the TV's apps row as the **Read Instead** banner. An update installs over the previous release and keeps your books, Positions and settings. (The repository must be public for Downloader to reach the URL.)
+
+Debug builds (from ADB, below) are signed with a different key, so a release won't install over one: uninstall the debug build first, which deletes its books and Positions.
+
 ## Installing test builds on the TV (ADB over Wi-Fi)
 
 One-time TV setup:

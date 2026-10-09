@@ -3,6 +3,28 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Release signing and versioning come from environment variables or Gradle properties
+// (-P or ~/.gradle/gradle.properties), never from the repo. CI sets them from GitHub secrets;
+// see "Releases" in the README.
+fun releaseSetting(name: String): String? =
+    (System.getenv(name) ?: providers.gradleProperty(name).orNull)?.takeIf { it.isNotBlank() }
+
+val signingSettings = listOf(
+    "READ_INSTEAD_KEYSTORE",
+    "READ_INSTEAD_KEYSTORE_PASSWORD",
+    "READ_INSTEAD_KEY_ALIAS",
+    "READ_INSTEAD_KEY_PASSWORD",
+).associateWith { releaseSetting(it) }
+val releaseSigned = signingSettings.values.all { it != null }
+if (!releaseSigned && signingSettings.values.any { it != null }) {
+    val missing = signingSettings.filterValues { it == null }.keys
+    throw GradleException("Release signing is partly configured; also set ${missing.joinToString()}.")
+}
+
+// Every release must have a higher versionCode than the last, or Android refuses the upgrade.
+// CI passes the workflow run number.
+val appVersionCode = releaseSetting("READ_INSTEAD_VERSION_CODE")?.toInt() ?: 1
+
 android {
     namespace = "io.github.sahithchiluveru.readinstead"
     compileSdk = 35
@@ -11,13 +33,25 @@ android {
         applicationId = "io.github.sahithchiluveru.readinstead"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = "0.1.$appVersionCode"
+    }
+
+    signingConfigs {
+        if (releaseSigned) {
+            create("release") {
+                storeFile = file(signingSettings.getValue("READ_INSTEAD_KEYSTORE")!!)
+                storePassword = signingSettings.getValue("READ_INSTEAD_KEYSTORE_PASSWORD")
+                keyAlias = signingSettings.getValue("READ_INSTEAD_KEY_ALIAS")
+                keyPassword = signingSettings.getValue("READ_INSTEAD_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (releaseSigned) signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -33,6 +67,16 @@ android {
     androidResources {
         // Keep pdf.js's WebAssembly uncompressed and fast to stream.
         noCompress += listOf("wasm")
+    }
+}
+
+// Without the release key, assembleRelease still works but builds app-release-unsigned.apk,
+// which the TV won't install. Use the debug APK for local testing.
+if (!releaseSigned) {
+    gradle.taskGraph.whenReady {
+        if (allTasks.any { it.path == ":app:packageRelease" }) {
+            logger.warn("Release signing is not configured, so the release APK will be unsigned.")
+        }
     }
 }
 
