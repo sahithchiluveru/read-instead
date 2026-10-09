@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ReadInstead" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/sepia</item>
+    </style>
+    <!-- Sepia page colour; keep in sync with the bg colour in reader/src/app.css. -->
+    <color name="sepia">#F4ECD8</color>
+</resources>

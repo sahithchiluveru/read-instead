@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Read Instead</title>
+<link rel="stylesheet" href="app.css">
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<main id="home">
+    <h1>Read Instead</h1>
+    <p>Speed check — pick a book, then use ← → on the remote.</p>
+    <div class="books">
+        <button data-format="pdf" data-src="../books/moby-dick.pdf">Moby-Dick<small>PDF · 530 pages</small></button>
+        <button data-format="epub" data-src="../books/war-and-peace.epub">War and Peace<small>EPUB · large novel</small></button>
+    </div>
+</main>
+<section id="reader" hidden>
+    <div id="stage"></div>
+    <output id="hud"></output>
+</section>
+</body>
+</html>

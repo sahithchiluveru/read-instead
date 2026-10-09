@@ -1,0 +1,76 @@
+/* Layout grid from docs/research/tv-reader-visual-design.md: 960×540 dp,
+   48 dp side / 27 dp bottom safe margins, 44 dp top band, 48 dp gutter. */
+:root {
+    --bg: #F4ECD8;
+    --text: #3D2F23;
+    --dim: #7A6650;
+    --accent: #A65A2A;
+    color-scheme: light;
+}
+html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Georgia, serif;
+}
+#home {
+    padding: 44px 48px;
+}
+#home h1 {
+    margin: 0 0 8px;
+    font-size: 32px;
+}
+#home p {
+    color: var(--dim);
+}
+.books {
+    display: flex;
+    gap: 24px;
+    margin-top: 32px;
+}
+.books button {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 220px;
+    padding: 20px;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--text);
+    font: inherit;
+    font-size: 20px;
+    text-align: left;
+    transition: transform 150ms;
+}
+.books button small {
+    color: var(--dim);
+    font-size: 14px;
+}
+.books button:focus {
+    outline: none;
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+#stage {
+    position: absolute;
+    inset: 44px 48px 27px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    column-gap: 48px;
+}
+#stage foliate-view {
+    width: 100%;
+    height: 100%;
+}
+#hud {
+    position: absolute;
+    top: 14px;
+    right: 48px;
+    color: var(--dim);
+    font: 13px/1 system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+}

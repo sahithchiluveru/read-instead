@@ -1,0 +1,13 @@
+{
+  "name": "read-instead-reader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "foliate-js": "github:johnfactotum/foliate-js#78914aef4466eb960965702401634c2cb348e9b1",
+    "pdfjs-dist": "6.3.289"
+  }
+}

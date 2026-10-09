@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder 320x180 banner (an open book); the real banner comes with the release ticket. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#F4ECD8" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#3D2F23" android:pathData="M100,50 Q130,40 158,52 V138 Q130,126 100,136 Z" />
+    <path android:fillColor="#3D2F23" android:pathData="M220,50 Q190,40 162,52 V138 Q190,126 220,136 Z" />
+    <path android:fillColor="#A65A2A" android:pathData="M90,140 Q130,128 160,142 Q190,128 230,140 V146 Q190,134 160,148 Q130,134 90,146 Z" />
+</vector>
