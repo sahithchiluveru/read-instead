@@ -1,6 +1,6 @@
 // Assembles reader/dist (or the directory given as the first argument), which the
 // Android app bundles as assets/reader.
-// Layout: src/ (our code), vendor/ (foliate-js, pdf.js, uqr).
+// Layout: src/ (our code), vendor/ (foliate-js, pdf.js, uqr, the reading fonts).
 import { cp, rm, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
@@ -33,5 +33,19 @@ for (const file of pdfjsFiles)
 
 for (const file of ['dist/index.mjs', 'LICENSE'])
     await cp(join(modules, 'uqr', file), join(dist, 'vendor/uqr', file))
+
+// The reading fonts, Latin and Latin Extended only: Literata (with its optical-size axis)
+// and Atkinson Hyperlegible Next, upright and italic. Other scripts fall back to the system.
+const fonts = {
+    literata: ['literata-latin', 'literata-latin-ext'].flatMap(name =>
+        [`${name}-opsz-normal.woff2`, `${name}-opsz-italic.woff2`]),
+    'atkinson-hyperlegible-next': ['atkinson-hyperlegible-next-latin', 'atkinson-hyperlegible-next-latin-ext']
+        .flatMap(name => [`${name}-wght-normal.woff2`, `${name}-wght-italic.woff2`]),
+}
+for (const [family, files] of Object.entries(fonts)) {
+    const from = join(modules, '@fontsource-variable', family)
+    for (const file of files) await cp(join(from, 'files', file), join(dist, 'vendor/fonts', file))
+    await cp(join(from, 'LICENSE'), join(dist, 'vendor/fonts', `${family}-LICENSE`))
+}
 
 console.log(`reader built into ${dist}`)

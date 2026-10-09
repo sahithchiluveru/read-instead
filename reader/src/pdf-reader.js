@@ -14,7 +14,8 @@ const CACHE_PAGES = (PREFETCH_OFFSETS.length + 1) * 2
 const SAMPLE_PAGES = 5
 
 // Two-page PDF reader: renders pages into offscreen canvases and swaps them in,
-// so a turn to an already-rendered Spread costs no rendering at all.
+// so a turn to an already-rendered Spread costs no rendering at all. In the single-page
+// layout, every page is shown alone. The theme tints the pages through app.css.
 export class PdfReader {
     format = 'pdf'
     #container
@@ -22,20 +23,26 @@ export class PdfReader {
     #loading
     #doc
     #closed = false
-    #pairing
+    #pairing // how the document's pages pair up
+    #layout // the reader's page layout setting: 'spread' or 'single-page'
     #spreads = []
     #spread = 0 // index into #spreads
     #chapters // Promise of the outline, in order: [{ title, page, depth }]
     #queue = Promise.resolve()
-    #cache = new LruCache(CACHE_PAGES, (_, entry) => entry.then(canvas => {
-        canvas.width = canvas.height = 0
-    }, () => {}))
+    #cache = newCache()
 
     // onLocation receives { position, pageLabel, progress, chapter, left, right } whenever a new
-    // Spread is on screen. The Position is the first page number shown.
-    constructor(container, { onLocation }) {
+    // Spread is on screen. The Position is the first page number shown. look is the
+    // reader's look to start with; only its layout matters here.
+    constructor(container, { onLocation, look }) {
         this.#container = container
         this.#onLocation = onLocation
+        this.#layout = look.layout
+    }
+
+    // How pages pair up on screen: the document's pairing, or one at a time.
+    get #shownPairing() {
+        return this.#layout === 'single-page' ? 'single' : this.#pairing
     }
 
     async open(url, position) {
@@ -53,7 +60,7 @@ export class PdfReader {
             pageCount: doc.numPages,
             sizes: await this.#sampleSizes(),
         })
-        this.#spreads = pairPages(this.#pairing, doc.numPages)
+        this.#spreads = pairPages(this.#shownPairing, doc.numPages)
         this.#chapters = this.#readChapters().catch(error => {
             console.warn('could not read the outline', error)
             return []
@@ -110,6 +117,19 @@ export class PdfReader {
         return left ?? right
     }
 
+    // A new look: a change of layout re-pairs the pages and redraws them at their new size,
+    // keeping the first page on screen. Resolves once the new Spread is shown.
+    async setLook({ layout }) {
+        if (layout === this.#layout) return
+        const page = this.#firstPage(this.#spread)
+        this.#layout = layout
+        this.#spreads = pairPages(this.#shownPairing, this.#doc.numPages)
+        const oldCache = this.#cache
+        this.#cache = newCache() // the pages on screen stay until their replacements are drawn
+        await this.#show(spreadIndexOf(this.#spreads, page))
+        oldCache.clear()
+    }
+
     close() {
         this.#closed = true
         this.#container.replaceChildren()
@@ -154,7 +174,7 @@ export class PdfReader {
     async #show(spread) {
         this.#spread = spread
         const { left, right } = this.#spreads[spread]
-        const slots = [left, right].slice(0, columnsOf(this.#pairing))
+        const slots = [left, right].slice(0, columnsOf(this.#shownPairing))
         const canvases = await Promise.all(slots.map(n => n && this.#render(n)))
         if (this.#spread !== spread || this.#closed) return // a newer turn won, or the book closed
         // A blank page keeps its partner on the correct side.
@@ -222,7 +242,7 @@ export class PdfReader {
         const page = await this.#doc.getPage(pageNumber)
         const box = this.#container.getBoundingClientRect()
         const gutter = parseFloat(getComputedStyle(this.#container).columnGap) || 0
-        const columns = columnsOf(this.#pairing)
+        const columns = columnsOf(this.#shownPairing)
         const base = page.getViewport({ scale: 1 })
         const scale = Math.min((box.width - gutter * (columns - 1)) / columns / base.width, box.height / base.height)
         const dpr = devicePixelRatio || 1
@@ -242,6 +262,12 @@ export class PdfReader {
 // (the last listed, if several start on the same page), or -1 before the first chapter.
 const chapterIndexAt = (chapters, page) => chapters.reduce((found, { page: start }, i) =>
     start <= page && (found < 0 || start >= chapters[found].page) ? i : found, -1)
+
+// Rendered pages by page number, as promises of their canvases; an evicted page's canvas
+// frees its memory.
+const newCache = () => new LruCache(CACHE_PAGES, (_, entry) => entry.then(canvas => {
+    canvas.width = canvas.height = 0
+}, () => {}))
 
 const blankLike = canvas => {
     const blank = document.createElement('div')

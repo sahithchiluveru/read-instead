@@ -2,6 +2,8 @@ import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
 import { loadPosition, reportState } from './bridge.js'
 import { closeContents, focusedContentsEntry, moveContentsFocus, openContents } from './contents.js'
 import { closeGoTo, goToTarget, leapGoTo, nudgeGoTo, openGoTo } from './go-to.js'
+import { changeLook, currentLook, loadLook } from './look.js'
+import { closeLookPanel, moveLookRow, openLookPanel, stepLookChoice } from './look-panel.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
 import { bookAdded, bookDeleted, initShelf, renderShelf } from './shelf.js'
@@ -20,7 +22,7 @@ const hud = document.getElementById('hud')
 // The open book: { book: { id, format, ... }, reader, ready, mode, location, returnTo }.
 // Keys only reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread),
 // 'bar' (Bar focus: ←/→ move between the Top Bar's buttons), or an overlay opened from
-// it: 'contents' or 'go-to'. location is the Spread on screen, and returnTo the one
+// it: 'contents', 'go-to', 'font' or 'theme'. location is the Spread on screen, and returnTo the one
 // before the last jump, which the Return chip goes back to.
 // Each reader draws into its own element in the stage, so one abandoned mid-open can't
 // touch the next book's pages.
@@ -100,9 +102,17 @@ const openContentsOverlay = async () => {
     setMode('contents')
 }
 
+// Font or Theme: a panel of the reader's look settings.
+const openLook = name => {
+    openLookPanel(name, currentLook())
+    setMode(name)
+}
+
 // What each Top Bar button does; the rest arrive with later overlays.
 const barActions = {
     contents: openContentsOverlay,
+    font: () => openLook('font'),
+    theme: () => openLook('theme'),
     'go-to'() {
         // A PDF reports its first location a little after the book is ready.
         const { reader, location } = session
@@ -167,7 +177,36 @@ const goToKeys = {
     },
 }
 
-const keysByMode = { reading: readingKeys, bar: barKeys, contents: contentsKeys, 'go-to': goToKeys }
+// Font and Theme: ↑↓ move between rows, ←/→ change the row's setting at once (saved, and
+// the book laid out anew), OK returns to Reading mode.
+const changeSetting = direction => {
+    const change = stepLookChoice(direction)
+    if (!change) return
+    const look = changeLook(change.name, change.value)
+    session.reader.setLook(look).catch(error => console.error(error))
+}
+
+const lookKeys = {
+    ArrowLeft: () => changeSetting(-1),
+    ArrowRight: () => changeSetting(1),
+    ArrowUp: () => moveLookRow(-1),
+    ArrowDown: () => moveLookRow(1),
+    Enter() {
+        closeLookPanel()
+        setMode('reading')
+    },
+}
+
+const keysByMode = {
+    reading: readingKeys, bar: barKeys, contents: contentsKeys, 'go-to': goToKeys, font: lookKeys, theme: lookKeys,
+}
+
+// Back from Font or Theme: Bar focus on its button.
+const leaveLook = () => {
+    const button = session.mode
+    closeLookPanel()
+    setMode('bar', button)
+}
 
 // Back leaves an overlay for Bar focus on its button, and Bar focus for Reading mode.
 const backByMode = {
@@ -180,6 +219,8 @@ const backByMode = {
         closeGoTo()
         setMode('bar', 'go-to')
     },
+    font: leaveLook,
+    theme: leaveLook,
 }
 
 const onKey = e => {
@@ -214,7 +255,7 @@ const openBook = async book => {
     const pages = document.createElement('div')
     pages.className = 'pages'
     stage.replaceChildren(pages)
-    opening.reader = new readers[book.format](pages, { onKey, onLocation })
+    opening.reader = new readers[book.format](pages, { onKey, onLocation, look: currentLook() })
     session = opening
     try {
         await opening.reader.open(`/books/${encodeURIComponent(book.id)}`, loadPosition(book.id))
@@ -241,6 +282,7 @@ const closeBook = () => {
     blurTopBar()
     closeContents()
     closeGoTo()
+    closeLookPanel()
     if (session?.ready) {
         try {
             session.reader.close()
@@ -258,6 +300,8 @@ const closeBook = () => {
 }
 
 addEventListener('keydown', onKey)
+
+loadLook()
 
 // A book was deleted from the phone; if it's the one open, the TV goes back to the Shelf.
 const onBookDeleted = book => {

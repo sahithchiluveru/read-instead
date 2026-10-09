@@ -234,13 +234,13 @@ describe('Bar focus', () => {
 
     test('OK on a button not built yet does nothing', async () => {
         const app = await reader.launch()
-        await app.open(chapters)
+        await app.open(pdfBook)
         await app.press('ArrowUp')
-        await focusButton(app, 'Font')
+        await focusButton(app, 'Pairing')
         const count = await app.stateCount()
         await pressQuietly(app, 'Enter')
         assert.equal(await app.stateCount(), count)
-        assert.equal(await focusedButton(app), 'Font')
+        assert.equal(await focusedButton(app), 'Pairing')
         await app.close()
     })
 

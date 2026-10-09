@@ -64,10 +64,32 @@ const columnBreak = (range, x) => {
     return null
 }
 
+// A word hyphenated across a page break belongs to the page where it starts, whole.
+// The point just past the word a text offset falls inside (or the offset itself, at a
+// word's edge).
+const wordEnd = ({ node, offset }) => {
+    if (!isText(node) || offset === 0 || offset >= node.length || /\s/.test(node.data[offset - 1])
+        || /\s/.test(node.data[offset])) return { node, offset }
+    const space = node.data.slice(offset).search(/\s/)
+    return { node, offset: space === -1 ? node.length : offset + space }
+}
+
+// The range with a word split at either end by hyphenation moved wholly onto the page
+// where it starts: dropped from the start, completed at the end.
+export const wholeWords = range => {
+    const whole = range.cloneRange()
+    const start = wordEnd({ node: range.startContainer, offset: range.startOffset })
+    const end = wordEnd({ node: range.endContainer, offset: range.endOffset })
+    whole.setEnd(end.node, end.offset)
+    whole.setStart(start.node, start.offset)
+    return whole
+}
+
 // Split the visible range of a two-column Spread into the left and right page's text.
 export const splitAtColumn = (range, x) => {
-    const point = columnBreak(range, x)
-    if (!point) return { left: rangeText(range), right: '' }
+    const found = columnBreak(range, x)
+    if (!found) return { left: rangeText(range), right: '' }
+    const point = wordEnd(found)
     const left = range.cloneRange()
     left.setEnd(point.node, point.offset)
     const right = range.cloneRange()

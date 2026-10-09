@@ -124,3 +124,19 @@ export const nestedContentsEpub = () => {
             [`${id}.xhtml`, xhtml(label, `<h1>${label}</h1>\n${paragraph(`${id}-1`)}`)])),
     })
 }
+
+// One long chapter whose every word is numbered (w1, w2, ...), so the first word on screen
+// identifies exactly where the reader is, however the text reflows.
+export const numberedWordsEpub = () => {
+    const paragraphs = Array.from({ length: 50 }, (_, p) =>
+        `<p>${Array.from({ length: 60 }, (_, i) => `w${p * 60 + i + 1}`).join(' ')}</p>`)
+    return epub({
+        'content.opf': opf({
+            title: 'Numbered Words Fixture',
+            manifest: '<item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>',
+            spine: '<itemref idref="ch1"/>',
+        }),
+        'nav.xhtml': nav([['ch1.xhtml', 'The Only Chapter']]),
+        'ch1.xhtml': xhtml('The Only Chapter', `<h1>The Only Chapter</h1>\n${paragraphs.join('\n')}`),
+    })
+}

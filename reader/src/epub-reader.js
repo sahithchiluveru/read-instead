@@ -1,13 +1,15 @@
 import '../vendor/foliate-js/view.js'
+import { bookStyles } from './epub-look.js'
 import { blockBookScripts } from './epub-scripts.js'
-import { rangeText, splitAtColumn } from './epub-text.js'
+import { rangeText, splitAtColumn, wholeWords } from './epub-text.js'
 
-// Pages (columns) side by side in a Spread.
-const COLUMNS = 2
+const nextFrame = () => new Promise(resolve =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
 // Two-page EPUB reader on top of foliate-js. Each chapter is laid out on its own,
 // so chapters always start in the left column of a fresh Spread. Fixed-layout books
-// show the publisher's spreads instead.
+// show the publisher's spreads instead. In the single-page layout, a Spread is one
+// centred column.
 export class EpubReader {
     format = 'epub'
     #view
@@ -18,13 +20,22 @@ export class EpubReader {
     #shown = null // the last location reported
     #tocItem = null // the Contents entry of the Spread on screen
     #onShown = null // resolves the turn in progress
+    #look // { font, size, layout, ... } (see look.js)
+    #relayingOut = false
+    #awaitingFonts = new WeakSet() // chapter documents waiting for their fonts
 
     // onLocation receives { position, pageLabel, progress, chapter, pagesLeftInChapter, left,
-    // right } whenever a new Spread is on screen.
-    constructor(stage, { onKey, onLocation }) {
+    // right } whenever a new Spread is on screen. look is the reader's look to start with.
+    constructor(stage, { onKey, onLocation, look }) {
         this.#stage = stage
         this.#onKey = onKey
         this.#onLocation = onLocation
+        this.#look = look
+    }
+
+    // Pages (columns) side by side in a Spread.
+    get #columns() {
+        return this.#look.layout === 'single-page' ? 1 : 2
     }
 
     async open(url, position) {
@@ -35,10 +46,11 @@ export class EpubReader {
         blockBookScripts(view.book)
         const paginator = view.renderer
         paginator.setAttribute('flow', 'paginated')
-        paginator.setAttribute('max-column-count', String(COLUMNS))
+        paginator.setAttribute('max-column-count', String(this.#columns))
         paginator.setAttribute('max-inline-size', '432px')
         paginator.setAttribute('gap', '6%')
         paginator.setAttribute('margin', '0px')
+        if (!view.isFixedLayout) paginator.setStyles(bookStyles(this.#look))
         // Book pages live in iframes; forward their keys so the remote keeps working.
         view.addEventListener('load', ({ detail: { doc } }) =>
             doc.addEventListener('keydown', this.#onKey))
@@ -50,12 +62,38 @@ export class EpubReader {
     // layout settles, and for the blank padding page it passes on its way to the next
     // chapter. Only a new Spread counts.
     #onRelocate(detail) {
-        if (!this.#onSpread() || detail.cfi === this.#shown?.position) return
+        if (this.#relayingOut || this.#fontsLoading() || !this.#onSpread()
+            || detail.cfi === this.#shown?.position) return
         const location = this.#location(detail)
         this.#shown = location
         this.#tocItem = detail.tocItem
         this.#onLocation(location)
         this.#onShown?.()
+    }
+
+    // Each chapter is its own document, which loads the reading font anew: until it has,
+    // the text is laid out in a fallback font's metrics and the Spread isn't final. Once
+    // it has, laying the chapter out again relocates to the anchored Spread.
+    #fontsLoading() {
+        if (this.#view.isFixedLayout) return false
+        const [{ doc } = {}] = this.#view.renderer.getContents()
+        if (doc?.fonts.status !== 'loading') return false
+        if (this.#awaitingFonts.has(doc)) return true
+        this.#awaitingFonts.add(doc)
+        doc.fonts.ready.then(() => {
+            this.#awaitingFonts.delete(doc)
+            if (this.#view?.renderer.getContents()[0]?.doc === doc) this.#view.renderer.render()
+        })
+        return true
+    }
+
+    // Resolves once the chapter on screen has its fonts and is laid out in them.
+    async #fontsSettled() {
+        const [{ doc } = {}] = this.#view.renderer.getContents()
+        if (this.#view.isFixedLayout || !doc
+            || (doc.fonts.status !== 'loading' && !this.#awaitingFonts.has(doc))) return
+        await doc.fonts.ready
+        await nextFrame()
     }
 
     #onSpread() {
@@ -84,14 +122,14 @@ export class EpubReader {
         if (this.#view.isFixedLayout) return null
         const renderer = this.#view.renderer
         const [{ doc }] = renderer.getContents()
-        const column = renderer.size / COLUMNS
+        const column = renderer.size / this.#columns
         const contentEnd = Math.max(0, ...[...rangeOfBody(doc).getClientRects()]
             .filter(rect => rect.width > 0).map(rect => rect.right))
         const chapterPages = Math.ceil(contentEnd / column - 0.01) // ignore sub-pixel overhang
-        return Math.max(0, chapterPages - renderer.page * COLUMNS)
+        return Math.max(0, chapterPages - renderer.page * this.#columns)
     }
 
-    #visibleText(range) {
+    #visibleText(visible) {
         const renderer = this.#view.renderer
         if (this.#view.isFixedLayout) {
             // One document per page slot, left to right; an empty slot (e.g. beside the
@@ -100,6 +138,8 @@ export class EpubReader {
                 doc?.body ? rangeText(rangeOfBody(doc)) : '')
             return { left, right }
         }
+        const range = wholeWords(visible)
+        if (this.#columns === 1) return { left: rangeText(range), right: '' }
         // The Spread is one paginator page holding both columns, so the right column starts
         // halfway across it. The paginator keeps a blank page before the chapter, hence
         // `start - size` for the Spread's left edge in chapter-document coordinates.
@@ -109,13 +149,15 @@ export class EpubReader {
 
     // Resolve to whether the Spread changed, as soon as the new Spread is laid out.
     // foliate's own next()/prev() settle ~100 ms later because it briefly locks navigation
-    // after each turn, ignoring turns in the meantime. So a turn first waits out the
-    // previous one, and no new Spread means the start/end of the book.
+    // after each turn, ignoring turns in the meantime. So a turn (or jump) first waits out
+    // the previous one, and no new Spread means the start/end of the book (or, for a jump,
+    // a target foliate couldn't resolve: it logs and swallows those). A new chapter's
+    // Spread may only show once its fonts have loaded.
     async #turn(navigate) {
         await this.#navigating
         return new Promise((resolve, reject) => {
             this.#onShown = () => resolve(true)
-            this.#navigating = navigate().then(() => resolve(false), reject)
+            this.#navigating = navigate().then(() => this.#fontsSettled()).then(() => resolve(false), reject)
                 .finally(() => this.#onShown = null)
         })
     }
@@ -148,26 +190,44 @@ export class EpubReader {
     // Jump to a Contents entry's target or a Position (a CFI). Like a turn, resolves to
     // whether the Spread changed.
     goTo(target) {
-        return this.#jump(() => this.#view.goTo(target))
+        return this.#turn(() => this.#view.goTo(target))
     }
 
     goToFraction(fraction) {
-        return this.#jump(() => this.#view.goToFraction(fraction))
-    }
-
-    // foliate ignores navigation while a turn settles, so a jump waits it out too. foliate
-    // logs and swallows a target it can't resolve, which then shows no new Spread.
-    async #jump(navigate) {
-        await this.#navigating
-        const before = this.#shown
-        const jumped = navigate()
-        this.#navigating = jumped.catch(() => {})
-        await jumped
-        return this.#shown !== before
+        return this.#turn(() => this.#view.goToFraction(fraction))
     }
 
     prev() {
         return this.#turn(() => this.#view.prev())
+    }
+
+    // Lay the book out in a new look (font, size, theme, layout), keeping the start of the
+    // Spread on screen, which foliate anchors to. Resolves once the new Spread is reported,
+    // even if it starts where the old one did, since its text and pages left have changed.
+    // A fixed-layout book keeps the publisher's own look and spreads.
+    setLook(look) {
+        if (this.#view.isFixedLayout) return Promise.resolve()
+        const relayout = this.#navigating.then(() => this.#relayout(look))
+        this.#navigating = relayout.catch(() => {})
+        return relayout
+    }
+
+    async #relayout(look) {
+        this.#look = look
+        const renderer = this.#view.renderer
+        this.#relayingOut = true
+        try {
+            renderer.setAttribute('max-column-count', String(this.#columns))
+            renderer.setStyles(bookStyles(look))
+            await nextFrame() // laid out, so the fonts it needs are loading
+            await renderer.getContents()[0]?.doc?.fonts.ready
+            await nextFrame() // foliate scrolls back to its anchor once the text has resized
+        } finally {
+            this.#relayingOut = false
+        }
+        this.#shown = null
+        const location = this.#view.lastLocation
+        if (location) this.#onRelocate(location)
     }
 
     close() {

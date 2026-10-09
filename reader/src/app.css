@@ -1,10 +1,26 @@
 /* Layout grid from docs/research/tv-reader-visual-design.md: 960×540 dp,
    48 dp side / 27 dp bottom safe margins, 44 dp top band, 48 dp gutter. */
-:root {
+/* Theme colour tokens from the research (no pure white or black). Sepia is the default;
+   look.js sets data-theme on the root, and a Theme swatch shows its own colours. */
+:root, [data-theme="sepia"] {
     --bg: #F4ECD8;
     --text: #3D2F23;
     --dim: #7A6650;
     --accent: #A65A2A;
+}
+[data-theme="dark"] {
+    --bg: #1C1B1F;
+    --text: #E2DCD2;
+    --dim: #9A948B;
+    --accent: #E0A458;
+}
+[data-theme="light"] {
+    --bg: #F7F7F4;
+    --text: #1E1E1E;
+    --dim: #6B6B6B;
+    --accent: #2F6DB5;
+}
+:root {
     color-scheme: light;
 }
 [hidden] {
@@ -211,6 +227,16 @@ html, body {
 #stage .pages foliate-view {
     width: 100%;
     height: 100%;
+}
+/* PDF pages follow the theme: on Sepia the white paper multiplies into the background
+   (images stay intact); in Dark the page is inverted, white paper going to about the
+   Dark background and black ink to about its text, hue-rotated back so colours stay
+   roughly right (images are accepted as imperfect). */
+:root[data-theme="sepia"] #stage canvas {
+    mix-blend-mode: multiply;
+}
+:root[data-theme="dark"] #stage canvas {
+    filter: invert(0.89) hue-rotate(180deg);
 }
 /* "Opening…" or why a book couldn't open, in the middle of the page area. */
 #hud {
@@ -425,4 +451,73 @@ html, body {
     border-radius: 50%;
     background: var(--text);
     transform: translate(-50%, -50%);
+}
+/* Font and Theme: rows of choices in a panel across the middle of the screen. */
+.look {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 24px 22px;
+}
+.look h2 {
+    margin: 0 0 8px;
+    color: var(--dim);
+    font-size: 14px;
+    font-weight: 500;
+}
+.look .options {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.look button {
+    min-width: 48px;
+    height: 40px;
+    padding: 0 16px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--text);
+    font: 16px/20px system-ui, sans-serif;
+    white-space: nowrap;
+    transition: transform 150ms ease-out;
+}
+.look button.selected {
+    border-color: var(--accent);
+}
+.look button:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    background: var(--text);
+    color: var(--bg);
+    transform: scale(1.05);
+}
+/* The Font choices are shown in their own faces (books get the full set from epub-look.js). */
+@font-face {
+    font-family: Literata;
+    font-weight: 200 900;
+    src: url('../vendor/fonts/literata-latin-opsz-normal.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Atkinson Hyperlegible Next';
+    font-weight: 200 800;
+    src: url('../vendor/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2');
+}
+.look button[data-value="literata"] {
+    font-family: Literata, Georgia, serif;
+}
+.look button[data-value="sans"] {
+    font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+}
+/* A Theme swatch is drawn in its own theme's colours, so it isn't filled when focused. */
+#theme button {
+    min-width: 96px;
+    background: var(--bg);
+}
+#theme button:focus {
+    background: var(--bg);
+    color: var(--text);
 }

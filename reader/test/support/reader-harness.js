@@ -13,7 +13,7 @@ const root = fileURLToPath(new URL('../..', import.meta.url))
 const types = {
     '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
     '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm',
-    '.svg': 'image/svg+xml',
+    '.svg': 'image/svg+xml', '.woff2': 'font/woff2',
 }
 
 // The TV's WebView lays out at 960×540 CSS px (1080p at 2× density).
@@ -47,18 +47,24 @@ export const startReader = async (books, covers = {}) => {
     // A fresh app launch. library is the Shelf's book records, in the native side's order
     // (tests change window.libraryBooks to add books); positions plays the persisted
     // Positions; links are what successive calls for the Phone Page link return (the
-    // first, then one per key reset).
-    const launch = async ({ library = [], positions = {}, links = [] } = {}) => {
+    // first, then one per key reset); settings plays the persisted reader settings, which
+    // the page's window.savedSettings shows as they're saved.
+    const launch = async ({ library = [], positions = {}, links = [], settings = {} } = {}) => {
         const context = await browser.newContext({ viewport })
         const page = await context.newPage()
         page.on('pageerror', error => console.error('page error:', error))
-        await page.addInitScript(({ library, positions, links }) => {
+        await page.addInitScript(({ library, positions, links, settings }) => {
             window.libraryBooks = library
             window.ReadInsteadLibrary = { books: () => JSON.stringify(window.libraryBooks) }
             window.reportedStates = []
             window.ReadInsteadNative = {
                 loadPosition: bookId => positions[bookId] ?? null,
                 onReaderState: json => window.reportedStates.push(JSON.parse(json)),
+            }
+            window.savedSettings = { ...settings }
+            window.ReadInsteadSettings = {
+                load: () => JSON.stringify(window.savedSettings),
+                save: (name, value) => { window.savedSettings[name] = value },
             }
             let link = 0
             window.keyResets = 0
@@ -70,7 +76,7 @@ export const startReader = async (books, covers = {}) => {
                     return window.ReadInsteadPhone.link()
                 },
             }
-        }, { library, positions, links })
+        }, { library, positions, links, settings })
         await page.goto(`${origin}/src/index.html`)
         return new App(page, context)
     }

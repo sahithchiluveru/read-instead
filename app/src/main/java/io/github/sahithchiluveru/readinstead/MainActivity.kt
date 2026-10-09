@@ -18,6 +18,7 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import androidx.webkit.WebViewFeature
 import io.github.sahithchiluveru.readinstead.library.Library
+import io.github.sahithchiluveru.readinstead.library.ReaderSettings
 import io.github.sahithchiluveru.readinstead.library.toJson
 
 internal const val TAG = "ReadInstead"
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
             }
             addJavascriptInterface(bridge, "ReadInsteadNative")
             addJavascriptInterface(LibraryBridge(library), "ReadInsteadLibrary")
+            addJavascriptInterface(SettingsBridge(ReaderSettings(library)), "ReadInsteadSettings")
             val connectivity = getSystemService(ConnectivityManager::class.java)
             addJavascriptInterface(PhoneLinkBridge(app.accessKey, app.phoneServer, connectivity), "ReadInsteadPhone")
             isFocusable = true
