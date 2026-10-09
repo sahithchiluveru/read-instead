@@ -143,9 +143,12 @@ export class PdfReader {
     }
 
     // Switch the book between cover-alone ('book') and 1–2 ('paper') pairing, as setLook.
-    // Resolves to the new Pairing, to be saved for the book. Landscape pages, Fit-width and
-    // the single-page layout show one page at a time whatever the Pairing.
+    // Resolves to the new Pairing, to be saved for the book. Fit-width and the single-page
+    // layout show one page at a time whatever the Pairing (it shows once they're off).
+    // Landscape pages always go one per screen, so there it resolves to null and nothing
+    // changes.
     async togglePairing() {
+        if (this.#autoPairing === 'single') return null
         const pairing = (this.#pairing ?? this.#autoPairing) === 'book' ? 'paper' : 'book'
         await this.#relayout(() => { this.#pairing = pairing })
         return pairing
@@ -218,8 +221,10 @@ export class PdfReader {
     // Fit-width: scroll half a screen down (1) or up (-1); from the page's bottom (top), go
     // to the top of the next page (the bottom of the previous one).
     async #scroll(direction) {
+        const shown = this.#shown
         const view = this.#container.clientHeight
         const height = await this.#pageHeight(this.#spread)
+        if (shown !== this.#shown || !this.#fitWidth) return false // relaid out meanwhile
         const bottom = Math.max(height - view, 0)
         const at = this.#offset * height
         // Half a pixel of slack absorbs rounding in offset × height.
@@ -230,14 +235,14 @@ export class PdfReader {
         const spread = this.#spread + direction
         if (direction > 0 || spread < 0) return this.#goTo(spread)
         const previous = await this.#pageHeight(spread)
+        if (shown !== this.#shown || !this.#fitWidth) return false
         return this.#goTo(spread, Math.max(previous - view, 0) / previous)
     }
 
     // The height on screen of a Spread's page in Fit-width, in CSS px (as #draw sizes it).
     async #pageHeight(spread) {
         const page = await this.#doc.getPage(this.#firstPage(spread))
-        const base = page.getViewport({ scale: 1 })
-        return Math.floor(base.height * this.#scaleOf(base))
+        return cssSize(fitted(page, this.#scaleOf(page.getViewport({ scale: 1 })))).height
     }
 
     async #show(spread, offset = 0) {
@@ -322,14 +327,13 @@ export class PdfReader {
     async #draw(pageNumber) {
         if (this.#closed) throw new Error('book closed')
         const page = await this.#doc.getPage(pageNumber)
-        const scale = this.#scaleOf(page.getViewport({ scale: 1 }))
-        const dpr = devicePixelRatio || 1
-        const viewport = page.getViewport({ scale: scale * dpr })
+        const viewport = fitted(page, this.#scaleOf(page.getViewport({ scale: 1 })))
+        const { width, height } = cssSize(viewport)
         const canvas = document.createElement('canvas')
         canvas.width = Math.floor(viewport.width)
         canvas.height = Math.floor(viewport.height)
-        canvas.style.width = `${Math.floor(viewport.width / dpr)}px`
-        canvas.style.height = `${Math.floor(viewport.height / dpr)}px`
+        canvas.style.width = `${width}px`
+        canvas.style.height = `${height}px`
         await page.render({ canvas, viewport }).promise
         page.cleanup()
         return canvas
@@ -344,6 +348,14 @@ export class PdfReader {
         const columns = columnsOf(this.#shownPairing)
         return Math.min((box.width - gutter * (columns - 1)) / columns / base.width, box.height / base.height)
     }
+}
+
+// A page's viewport at a scale on screen, in device pixels, and the size it takes on
+// screen in whole CSS px.
+const fitted = (page, scale) => page.getViewport({ scale: scale * (devicePixelRatio || 1) })
+const cssSize = ({ width, height }) => {
+    const dpr = devicePixelRatio || 1
+    return { width: Math.floor(width / dpr), height: Math.floor(height / dpr) }
 }
 
 // A Position (or a Contents target: a page number) as its page and scroll offset.

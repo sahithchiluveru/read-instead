@@ -18,13 +18,13 @@ class SettingsBridge(private val settings: ReaderSettings) {
         settings.save(name, value)
     }
 
-    /** A book's own saved settings, as [load]. */
+    /** A PDF's own saved settings (Pairing, Fit-width), as [load]. */
     @JavascriptInterface
-    fun loadBook(bookId: String): String = settings.bookToJson(bookId)
+    fun loadPdf(bookId: String): String = settings.pdfToJson(bookId)
 
-    /** Saves one of a book's own settings; anything else is ignored. */
+    /** Saves one of a PDF's own settings; anything else is ignored. */
     @JavascriptInterface
-    fun saveBook(bookId: String, name: String, value: String) {
-        settings.saveForBook(bookId, name, value)
+    fun savePdf(bookId: String, name: String, value: String) {
+        settings.savePdf(bookId, name, value)
     }
 }

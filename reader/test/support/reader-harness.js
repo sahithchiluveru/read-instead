@@ -48,14 +48,14 @@ export const startReader = async (books, covers = {}) => {
     // (tests change window.libraryBooks to add books); positions plays the persisted
     // Positions; links are what successive calls for the Phone Page link return (the
     // first, then one per key reset); settings plays the persisted reader settings, which
-    // the page's window.savedSettings shows as they're saved; bookSettings plays each
-    // book's own persisted settings ({ id: { name: value } }), shown the same way in
-    // window.savedBookSettings.
-    const launch = async ({ library = [], positions = {}, links = [], settings = {}, bookSettings = {} } = {}) => {
+    // the page's window.savedSettings shows as they're saved; pdfSettings plays each
+    // PDF's own persisted settings ({ id: { name: value } }), shown the same way in
+    // window.savedPdfSettings.
+    const launch = async ({ library = [], positions = {}, links = [], settings = {}, pdfSettings = {} } = {}) => {
         const context = await browser.newContext({ viewport })
         const page = await context.newPage()
         page.on('pageerror', error => console.error('page error:', error))
-        await page.addInitScript(({ library, positions, links, settings, bookSettings }) => {
+        await page.addInitScript(({ library, positions, links, settings, pdfSettings }) => {
             window.libraryBooks = library
             window.ReadInsteadLibrary = { books: () => JSON.stringify(window.libraryBooks) }
             window.reportedStates = []
@@ -64,13 +64,17 @@ export const startReader = async (books, covers = {}) => {
                 onReaderState: json => window.reportedStates.push(JSON.parse(json)),
             }
             window.savedSettings = { ...settings }
-            window.savedBookSettings = structuredClone(bookSettings)
+            // Like ReaderSettings, only a PDF's Pairing and Fit-width are kept.
+            const pdfNames = ['pairing', 'fit-width']
+            window.savedPdfSettings = structuredClone(pdfSettings)
             window.ReadInsteadSettings = {
                 load: () => JSON.stringify(window.savedSettings),
                 save: (name, value) => { window.savedSettings[name] = value },
-                loadBook: bookId => JSON.stringify(window.savedBookSettings[bookId] ?? {}),
-                saveBook: (bookId, name, value) => {
-                    window.savedBookSettings[bookId] = { ...window.savedBookSettings[bookId], [name]: value }
+                loadPdf: bookId => JSON.stringify(Object.fromEntries(Object.entries(window.savedPdfSettings[bookId] ?? {})
+                    .filter(([name]) => pdfNames.includes(name)))),
+                savePdf: (bookId, name, value) => {
+                    if (!pdfNames.includes(name)) return
+                    window.savedPdfSettings[bookId] = { ...window.savedPdfSettings[bookId], [name]: value }
                 },
             }
             let link = 0
@@ -83,7 +87,7 @@ export const startReader = async (books, covers = {}) => {
                     return window.ReadInsteadPhone.link()
                 },
             }
-        }, { library, positions, links, settings, bookSettings })
+        }, { library, positions, links, settings, pdfSettings })
         await page.goto(`${origin}/src/index.html`)
         return new App(page, context)
     }

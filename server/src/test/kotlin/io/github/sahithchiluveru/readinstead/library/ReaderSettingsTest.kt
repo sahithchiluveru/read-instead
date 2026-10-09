@@ -63,19 +63,19 @@ class ReaderSettingsTest {
         return (added as Library.AddResult.Added).book.id
     }
 
-    private fun ReaderSettings.savedFor(bookId: String) = Json.parseToJsonElement(bookToJson(bookId)) as JsonObject
+    private fun ReaderSettings.savedFor(bookId: String) = Json.parseToJsonElement(pdfToJson(bookId)) as JsonObject
 
     @Test
-    fun `a book's own settings are saved with it and survive a restart`() {
+    fun `a PDF's own settings are saved with it and survive a restart`() {
         val library = library()
         val id = library.addBook()
         val other = library.add("other.pdf", ByteArrayInputStream("another".toByteArray()))
             .let { (it as Library.AddResult.Added).book.id }
         val settings = ReaderSettings(library)
         assertEquals(JsonObject(emptyMap()), settings.savedFor(id))
-        assertTrue(settings.saveForBook(id, "pairing", "paper"))
-        assertTrue(settings.saveForBook(id, "fit-width", "true"))
-        assertTrue(settings.saveForBook(id, "pairing", "book"))
+        assertTrue(settings.savePdf(id, "pairing", "paper"))
+        assertTrue(settings.savePdf(id, "fit-width", "true"))
+        assertTrue(settings.savePdf(id, "pairing", "book"))
 
         val restarted = ReaderSettings(library())
         assertEquals(
@@ -87,13 +87,13 @@ class ReaderSettingsTest {
     }
 
     @Test
-    fun `only a book's Pairing and Fit-width can be saved, and only for a book on the Shelf`() {
+    fun `only a PDF's Pairing and Fit-width can be saved, and only for a book on the Shelf`() {
         val library = library()
         val id = library.addBook()
         val settings = ReaderSettings(library)
-        assertFalse(settings.saveForBook(id, "position", "12"))
-        assertFalse(settings.saveForBook(id, "theme", "dark"))
-        assertFalse(settings.saveForBook("no-such-book", "pairing", "paper"))
+        assertFalse(settings.savePdf(id, "position", "12"))
+        assertFalse(settings.savePdf(id, "theme", "dark"))
+        assertFalse(settings.savePdf("no-such-book", "pairing", "paper"))
         assertEquals(JsonObject(emptyMap()), settings.savedFor(id))
         assertEquals(JsonObject(emptyMap()), settings.savedFor("no-such-book"))
         assertNull(library.book(id)?.position)
@@ -103,7 +103,7 @@ class ReaderSettingsTest {
     fun `deleting a book deletes its settings`() {
         val library = library()
         val id = library.addBook()
-        ReaderSettings(library).saveForBook(id, "fit-width", "true")
+        ReaderSettings(library).savePdf(id, "fit-width", "true")
         library.delete(id)
         assertEquals(JsonObject(emptyMap()), ReaderSettings(library).savedFor(id))
     }

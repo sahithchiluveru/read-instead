@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, test } from 'node:test'
-import { bookPdf, paperPdf } from './support/pdf-fixtures.js'
+import { bookPdf, paperPdf, slidesPdf } from './support/pdf-fixtures.js'
 import { startReader } from './support/reader-harness.js'
 
 const book = name => ({ id: name, format: 'pdf' })
@@ -17,11 +17,11 @@ const BOTTOM = PAGE_HEIGHT - STAGE.height
 
 let reader
 before(async () => {
-    reader = await startReader({ book: bookPdf(), paper: paperPdf() })
+    reader = await startReader({ book: bookPdf(), paper: paperPdf(), slides: slidesPdf() })
 })
 after(() => reader.close())
 
-const savedBookSettings = (app, id) => app.page.evaluate(id => window.savedBookSettings[id], id)
+const savedPdfSettings = (app, id) => app.page.evaluate(id => window.savedPdfSettings[id], id)
 const statusText = app => app.page.textContent('#top-bar .status')
 const focusedButton = app => app.page.evaluate(() =>
     document.activeElement.closest('#top-bar') ? document.activeElement.textContent : null)
@@ -69,13 +69,13 @@ describe('Pairing', () => {
         assert.equal(paired.pageLabel, 'Pages 1–2 of 45')
         assert.equal(paired.mode, 'bar', 'Bar focus stays on Pairing, to switch back')
         assert.equal(await focusedButton(app), 'Pairing')
-        assert.deepEqual(await savedBookSettings(app, 'book'), { pairing: 'paper' })
+        assert.deepEqual(await savedPdfSettings(app, 'book'), { pairing: 'paper' })
         assert.deepEqual(pagesShown(await app.press('ArrowDown')), ['Page 1', 'Page 2'])
         assert.deepEqual(pagesShown(await app.press('ArrowRight')), ['Page 3', 'Page 4'])
 
         // Switching back keeps the first page on screen.
         assert.deepEqual(pagesShown(await pressButton(app, 'Pairing')), ['Page 2', 'Page 3'])
-        assert.deepEqual(await savedBookSettings(app, 'book'), { pairing: 'book' })
+        assert.deepEqual(await savedPdfSettings(app, 'book'), { pairing: 'book' })
         await app.close()
     })
 
@@ -83,12 +83,24 @@ describe('Pairing', () => {
         const app = await reader.launch()
         assert.deepEqual(pagesShown(await app.open(book('paper'))), ['Page 1', 'Page 2'])
         assert.deepEqual(pagesShown(await pressButton(app, 'Pairing')), ['', 'Page 1'])
-        assert.deepEqual(await savedBookSettings(app, 'paper'), { pairing: 'book' })
+        assert.deepEqual(await savedPdfSettings(app, 'paper'), { pairing: 'book' })
+        await app.close()
+    })
+
+    test('leaves landscape pages one per screen', async () => {
+        const app = await reader.launch()
+        assert.deepEqual(pagesShown(await app.open(book('slides'))), ['Page 1', ''])
+        await app.press('ArrowUp')
+        for (let i = 0; i < 10 && await focusedButton(app) !== 'Pairing'; i++) await app.page.keyboard.press('ArrowRight')
+        await pressQuietly(app, 'Enter')
+        assert.equal(await focusedButton(app), 'Pairing')
+        assert.equal(await app.page.locator('#stage canvas').count(), 1)
+        assert.equal(await savedPdfSettings(app, 'slides'), undefined)
         await app.close()
     })
 
     test("a book opens with its saved Pairing, and other books keep their own", async () => {
-        const app = await reader.launch({ bookSettings: { book: { pairing: 'paper' } } })
+        const app = await reader.launch({ pdfSettings: { book: { pairing: 'paper' } } })
         assert.deepEqual(pagesShown(await app.open(book('book'))), ['Page 1', 'Page 2'])
         await app.back()
         assert.deepEqual(pagesShown(await app.open(book('paper'))), ['Page 1', 'Page 2'])
@@ -108,17 +120,17 @@ describe('Fit-width', () => {
         assert.equal(fitted.mode, 'bar')
         const [shown] = await view(app)
         assert.deepEqual(shown, { width: STAGE.width, height: PAGE_HEIGHT, scrolled: 0, left: 0 })
-        assert.deepEqual(await savedBookSettings(app, 'book'), { 'fit-width': 'true' })
+        assert.deepEqual(await savedPdfSettings(app, 'book'), { 'fit-width': 'true' })
 
         const spread = await app.press('Enter') // still on Fit-width
         assert.deepEqual(pagesShown(spread), ['Page 2', 'Page 3'])
         assert.equal((await view(app)).length, 2)
-        assert.deepEqual(await savedBookSettings(app, 'book'), { 'fit-width': 'false' })
+        assert.deepEqual(await savedPdfSettings(app, 'book'), { 'fit-width': 'false' })
         await app.close()
     })
 
     test('→ scrolls down half a screen at a time, then moves to the top of the next page', async () => {
-        const app = await reader.launch({ bookSettings: fitWidth })
+        const app = await reader.launch({ pdfSettings: fitWidth })
         const opened = await app.open(book('book'))
         assert.deepEqual([opened.left, opened.right], [page(1), ''])
         assert.equal(await scrolled(app), 0)
@@ -146,7 +158,7 @@ describe('Fit-width', () => {
     })
 
     test('← scrolls up half a screen, then moves to the bottom of the previous page', async () => {
-        const app = await reader.launch({ bookSettings: fitWidth, positions: { book: '2' } })
+        const app = await reader.launch({ pdfSettings: fitWidth, positions: { book: '2' } })
         assert.deepEqual(pagesShown(await app.open(book('book'))), ['Page 2', ''])
         assert.equal(await scrolled(app), 0)
 
@@ -162,7 +174,7 @@ describe('Fit-width', () => {
     })
 
     test('→ at the bottom of the last page does nothing', async () => {
-        const app = await reader.launch({ bookSettings: fitWidth, positions: { book: '45' } })
+        const app = await reader.launch({ pdfSettings: fitWidth, positions: { book: '45' } })
         assert.deepEqual(pagesShown(await app.open(book('book'))), ['Page 45', ''])
         for (let i = 0; i < 4; i++) await app.press('ArrowRight')
         assertNear(await scrolled(app), BOTTOM, 'at the bottom')
@@ -171,7 +183,7 @@ describe('Fit-width', () => {
     })
 
     test('the Position keeps the scroll offset and restores it exactly', async () => {
-        const app = await reader.launch({ bookSettings: fitWidth })
+        const app = await reader.launch({ pdfSettings: fitWidth })
         await app.open(book('book'))
         for (let i = 0; i < 7; i++) await app.press('ArrowRight')
         const saved = await app.state()
@@ -180,7 +192,7 @@ describe('Fit-width', () => {
         assertNear(offset, 2 * STEP, 'two steps into page 2')
         await app.close()
 
-        const relaunched = await reader.launch({ bookSettings: fitWidth, positions: { book: saved.position } })
+        const relaunched = await reader.launch({ pdfSettings: fitWidth, positions: { book: saved.position } })
         const restored = await relaunched.open(book('book'))
         assert.equal(restored.position, saved.position)
         assert.deepEqual([restored.left, restored.right], [saved.left, saved.right])
@@ -192,7 +204,7 @@ describe('Fit-width', () => {
     })
 
     test("a scrolled Position opens on its page's Spread without Fit-width", async () => {
-        const app = await reader.launch({ bookSettings: fitWidth, positions: { book: '3' } })
+        const app = await reader.launch({ pdfSettings: fitWidth, positions: { book: '3' } })
         await app.open(book('book'))
         const saved = await app.press('ArrowRight')
         await app.close()
@@ -203,7 +215,7 @@ describe('Fit-width', () => {
     })
 
     test('a jump lands at the top of its page', async () => {
-        const app = await reader.launch({ bookSettings: fitWidth })
+        const app = await reader.launch({ pdfSettings: fitWidth })
         await app.open(book('book'))
         await app.press('ArrowRight')
         await app.press('ArrowUp')
@@ -212,6 +224,23 @@ describe('Fit-width', () => {
         const jumped = await app.press('Enter') // Chapter Two
         assert.deepEqual(pagesShown(jumped), ['Page 10', ''])
         assert.equal(await scrolled(app), 0)
+        await app.close()
+    })
+
+    test('the Return chip goes back to the scrolled spot', async () => {
+        const app = await reader.launch({ pdfSettings: fitWidth })
+        await app.open(book('book'))
+        await app.press('ArrowRight')
+        const before = await app.press('ArrowRight')
+        await app.press('ArrowUp')
+        await app.press('Enter') // Contents
+        await app.page.keyboard.press('ArrowDown')
+        await app.press('Enter') // Chapter Two
+        await app.press('ArrowUp') // onto the Return chip
+        assert.match(await focusedButton(app), /^Return to/)
+        const back = await app.press('Enter')
+        assert.equal(back.position, before.position)
+        assertNear(await scrolled(app), 2 * STEP, 'two steps into page 1')
         await app.close()
     })
 })

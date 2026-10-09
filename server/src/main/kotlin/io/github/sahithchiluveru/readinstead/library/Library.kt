@@ -130,19 +130,18 @@ class Library(
     }
 
     /** The book was opened on the TV, which puts it first on the Shelf. */
-    fun opened(id: String) = update(id) { it.copy(lastOpenedAt = clock()) }
+    fun opened(id: String) {
+        update(id) { it.copy(lastOpenedAt = clock()) }
+    }
 
     /** Saves where the reader is in a book, and how far through it that is (0–1). */
-    fun savePosition(id: String, position: String, progress: Double) =
+    fun savePosition(id: String, position: String, progress: Double) {
         update(id) { it.copy(position = position, progress = progress) }
-
-    /** Saves one of a book's own settings; false if there's no such book. */
-    @Synchronized
-    fun saveBookSetting(id: String, name: String, value: String): Boolean {
-        if (id !in books) return false
-        update(id) { it.copy(pdfSettings = it.pdfSettings + (name to value)) }
-        return true
     }
+
+    /** Saves one of a PDF's own settings; false if there's no such book. */
+    fun savePdfSetting(id: String, name: String, value: String): Boolean =
+        update(id) { it.copy(pdfSettings = it.pdfSettings + (name to value)) }
 
     @Synchronized
     fun setting(name: String): String? = settings[name]
@@ -153,10 +152,12 @@ class Library(
         save()
     }
 
+    /** False if there's no such book. */
     @Synchronized
-    private fun update(id: String, change: (Book) -> Book) {
-        books[id] = change(books[id] ?: return)
+    private fun update(id: String, change: (Book) -> Book): Boolean {
+        books[id] = change(books[id] ?: return false)
         save()
+        return true
     }
 
     /** Title, author and cover, or null if the book can't be opened. */

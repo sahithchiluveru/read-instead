@@ -20,20 +20,20 @@ class ReaderSettings(private val library: Library) {
         return true
     }
 
-    /** A book's own saved settings, as [toJson]; empty for a book not on the Shelf. */
-    fun bookToJson(bookId: String): String =
-        library.book(bookId)?.pdfSettings.orEmpty().filterKeys { it in BOOK_NAMES }.toList().toJson()
+    /** A PDF's own saved settings, as [toJson]; empty for a book not on the Shelf. */
+    fun pdfToJson(bookId: String): String =
+        library.book(bookId)?.pdfSettings.orEmpty().filterKeys { it in PDF_NAMES }.toList().toJson()
 
-    /** Saves one of a book's own settings; false (and nothing saved) if it isn't one, or there's no such book. */
-    fun saveForBook(bookId: String, name: String, value: String): Boolean =
-        name in BOOK_NAMES && library.saveBookSetting(bookId, name, value)
+    /** Saves one of a PDF's own settings; false (and nothing saved) if it isn't one, or there's no such book. */
+    fun savePdf(bookId: String, name: String, value: String): Boolean =
+        name in PDF_NAMES && library.savePdfSetting(bookId, name, value)
 
     private fun List<Pair<String, String>>.toJson() =
         JsonObject(associate { (name, value) -> name to JsonPrimitive(value) }).toString()
 
     private companion object {
         val NAMES = listOf("font", "size", "theme", "layout")
-        val BOOK_NAMES = listOf("pairing", "fit-width")
+        val PDF_NAMES = listOf("pairing", "fit-width")
         const val KEY_PREFIX = "reader."
     }
 }
