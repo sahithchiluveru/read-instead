@@ -42,9 +42,10 @@ export class PdfReader {
     #chapters // Promise of the outline, in order: [{ title, page, depth }]
     #queue = Promise.resolve()
     #cache = newCache()
+    #pageCharacters = new Map() // characters of text on each page whose text has been read
 
-    // onLocation receives { position, pageLabel, progress, chapter, left, right } whenever a new
-    // Spread is on screen. The Position is the first page number shown (and in Fit-width,
+    // onLocation receives { position, pageLabel, progress, chapter, charactersLeftInChapter, left,
+    // right } whenever a new Spread is on screen. The Position is the first page number shown (and in Fit-width,
     // the scroll offset). look is the reader's look to start with; only its layout matters
     // here. settings are the book's own saved settings: 'pairing' and 'fit-width'.
     constructor(container, { onLocation, look, settings = {} }) {
@@ -53,6 +54,11 @@ export class PdfReader {
         this.#look = look
         this.#pairing = PAIRINGS.includes(settings.pairing) ? settings.pairing : null
         this.#fitWidth = settings['fit-width'] === 'true'
+    }
+
+    // Whether Fit-width is on, so → scrolls rather than turning a whole Spread.
+    get fitWidth() {
+        return this.#fitWidth
     }
 
     // How pages pair up on screen: one at a time for landscape pages, in Fit-width and in
@@ -283,9 +289,25 @@ export class PdfReader {
             pageLabel: left && right ? `Pages ${left}–${right} of ${pages}` : `Page ${first} of ${pages}`,
             progress: last ? spread / last : 1,
             chapter: chapters[chapterIndexAt(chapters, first)]?.title ?? '',
+            charactersLeftInChapter: this.#charactersLeftInChapter(chapters, first),
             left: leftText,
             right: rightText,
         })
+    }
+
+    // Characters from the first page on screen to the end of its chapter (up to where the
+    // next outline entry starts), or null before the first chapter. Reading every page's text
+    // would hold up the turn, so pages not yet read count as the average page read so far.
+    #charactersLeftInChapter(chapters, first) {
+        const index = chapterIndexAt(chapters, first)
+        if (index < 0) return null
+        const start = chapters[index].page
+        const end = Math.min(this.#doc.numPages + 1, ...chapters.map(({ page }) => page).filter(page => page > start))
+        const known = [...this.#pageCharacters.values()]
+        const perPage = known.reduce((sum, count) => sum + count, 0) / known.length || 0
+        let characters = 0
+        for (let page = first; page < end; page++) characters += this.#pageCharacters.get(page) ?? perPage
+        return Math.round(characters)
     }
 
     // A page's text, one line per line of print.
@@ -293,8 +315,10 @@ export class PdfReader {
         try {
             const page = await this.#doc.getPage(pageNumber)
             const { items } = await page.getTextContent()
-            return items.map(item => item.str + (item.hasEOL ? '\n' : '')).join('')
+            const text = items.map(item => item.str + (item.hasEOL ? '\n' : '')).join('')
                 .split('\n').map(line => line.trim()).filter(Boolean).join('\n')
+            this.#pageCharacters.set(pageNumber, text.length)
+            return text
         } catch (error) {
             console.warn(`text of page ${pageNumber} failed`, error)
             return ''

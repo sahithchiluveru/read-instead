@@ -33,8 +33,8 @@ export class EpubReader {
     #relayingOut = false
     #awaitingFonts = new WeakSet() // chapter documents waiting for their fonts
 
-    // onLocation receives { position, pageLabel, progress, chapter, pagesLeftInChapter, left,
-    // right } whenever a new Spread is on screen. look is the reader's look to start with.
+    // onLocation receives { position, pageLabel, progress, chapter, pagesLeftInChapter,
+    // charactersLeftInChapter, left, right } whenever a new Spread is on screen. look is the reader's look to start with.
     constructor(stage, { onKey, onLocation, look }) {
         this.#stage = stage
         this.#onKey = onKey
@@ -117,6 +117,7 @@ export class EpubReader {
     }
 
     #location({ cfi, fraction, tocItem, range }) {
+        const visible = this.#view.isFixedLayout ? null : wholeWords(range)
         return {
             position: cfi,
             // No fixed pages in a reflowable book: the label is how far through it this is.
@@ -124,7 +125,9 @@ export class EpubReader {
             progress: fraction ?? 0,
             chapter: tocItem?.label?.trim() ?? '',
             pagesLeftInChapter: this.#pagesLeftInChapter(),
-            ...this.#visibleText(range),
+            // A fixed-layout book's sections are pages, not chapters to read through.
+            charactersLeftInChapter: visible && charactersFrom(visible),
+            ...this.#visibleText(visible),
         }
     }
 
@@ -143,6 +146,7 @@ export class EpubReader {
         return Math.max(0, chapterPages - renderer.page * this.#columns)
     }
 
+    // The left and right page's text; visible is the Spread's range in a reflowable book.
     #visibleText(visible) {
         const renderer = this.#view.renderer
         if (this.#view.isFixedLayout) {
@@ -152,13 +156,12 @@ export class EpubReader {
                 doc?.body ? rangeText(rangeOfBody(doc)) : '')
             return { left, right }
         }
-        const range = wholeWords(visible)
-        if (this.#columns === 1) return { left: rangeText(range), right: '' }
+        if (this.#columns === 1) return { left: rangeText(visible), right: '' }
         // The Spread is one paginator page holding both columns, so the right column starts
         // halfway across it. The paginator keeps a blank page before the chapter, hence
         // `start - size` for the Spread's left edge in chapter-document coordinates.
         const spreadStart = renderer.start - renderer.size
-        return splitAtColumn(range, spreadStart + renderer.size / 2)
+        return splitAtColumn(visible, spreadStart + renderer.size / 2)
     }
 
     // Resolve to whether the Spread changed, as soon as the new Spread is laid out.
@@ -249,6 +252,15 @@ export class EpubReader {
         this.#view?.close()
         this.#stage.replaceChildren()
     }
+}
+
+// Characters from the start of the Spread's range to the end of its chapter (a reflowable
+// chapter is one document), with whitespace collapsed as in the page text.
+const charactersFrom = visible => {
+    const doc = visible.startContainer.ownerDocument
+    const rest = rangeOfBody(doc)
+    rest.setStart(visible.startContainer, visible.startOffset)
+    return rest.toString().replace(/\s+/g, ' ').trim().length
 }
 
 const rangeOfBody = doc => {

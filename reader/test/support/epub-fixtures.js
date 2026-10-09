@@ -126,9 +126,10 @@ export const nestedContentsEpub = () => {
 }
 
 // One long chapter whose every word is numbered (w1, w2, ...), so the first word on screen
-// identifies exactly where the reader is, however the text reflows.
-export const numberedWordsEpub = () => {
-    const paragraphs = Array.from({ length: 50 }, (_, p) =>
+// identifies exactly where the reader is, however the text reflows. 50 paragraphs of 60
+// words unless asked for more.
+export const numberedWordsEpub = (paragraphCount = 50) => {
+    const paragraphs = Array.from({ length: paragraphCount }, (_, p) =>
         `<p>${Array.from({ length: 60 }, (_, i) => `w${p * 60 + i + 1}`).join(' ')}</p>`)
     return epub({
         'content.opf': opf({

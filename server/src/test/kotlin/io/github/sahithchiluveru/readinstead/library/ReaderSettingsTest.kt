@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 
 /**
  * The reader's settings, kept in the Library's store: global ones (font, size, theme,
- * layout) and a PDF's own (Pairing, Fit-width).
+ * layout, reading speed) and a PDF's own (Pairing, Fit-width).
  */
 class ReaderSettingsTest {
     private val dir = Files.createTempDirectory("read-instead-library").toFile()
@@ -44,6 +44,15 @@ class ReaderSettingsTest {
             JsonObject(mapOf("theme" to JsonPrimitive("light"), "size" to JsonPrimitive("25"))),
             restarted.saved(),
         )
+    }
+
+    @Test
+    fun `the reading speed is kept for every book and survives a restart`() {
+        val speed = """{"secondsPerCharacter":0.05,"samples":12}"""
+        assertTrue(ReaderSettings(library()).save("reading-speed", speed))
+
+        val restarted = ReaderSettings(library())
+        assertEquals(JsonObject(mapOf("reading-speed" to JsonPrimitive(speed))), restarted.saved())
     }
 
     @Test

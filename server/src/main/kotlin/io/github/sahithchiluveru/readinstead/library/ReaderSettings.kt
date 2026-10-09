@@ -5,7 +5,8 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The reader's settings, kept in the Library's store. Its look (font, size, theme and page
- * layout) is global for every book and kept with the app's other settings; a PDF's Pairing
+ * layout) and the owner's reading speed (for time-left estimates) are global for every book
+ * and kept with the app's other settings; a PDF's Pairing
  * and Fit-width are its own, kept in its record. The reader owns the values; only these
  * names can be read or written, so the reader never sees the Access Key.
  */
@@ -32,7 +33,7 @@ class ReaderSettings(private val library: Library) {
         JsonObject(associate { (name, value) -> name to JsonPrimitive(value) }).toString()
 
     private companion object {
-        val NAMES = listOf("font", "size", "theme", "layout")
+        val NAMES = listOf("font", "size", "theme", "layout", "reading-speed")
         val PDF_NAMES = listOf("pairing", "fit-width")
         const val KEY_PREFIX = "reader."
     }

@@ -1,11 +1,12 @@
 import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
-import { loadPosition, reportState, savePdfSetting, savedPdfSettings } from './bridge.js'
+import { loadPosition, reportState, savePdfSetting, saveSetting, savedPdfSettings, savedSettings } from './bridge.js'
 import { closeContents, focusedContentsEntry, moveContentsFocus, openContents } from './contents.js'
 import { closeGoTo, goToTarget, leapGoTo, nudgeGoTo, openGoTo } from './go-to.js'
 import { changeLook, currentLook, loadLook } from './look.js'
 import { closeLookPanel, moveLookRow, openLookPanel, stepLookChoice } from './look-panel.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
+import { ReadingSpeed } from './reading-speed.js'
 import { bookAdded, bookDeleted, initShelf, renderShelf } from './shelf.js'
 import {
     blurTopBar, focusTopBar, focusedTopBarAction, hideTopBar, moveTopBarFocus, offerReturn, resetTopBar,
@@ -19,11 +20,25 @@ const readerScreen = document.getElementById('reader')
 const stage = document.getElementById('stage')
 const hud = document.getElementById('hud')
 
-// The open book: { book: { id, format, ... }, reader, ready, mode, location, returnTo }.
+// The owner's reading speed, one for every book, saved with the reader's settings.
+const parseSpeed = json => {
+    try {
+        return JSON.parse(json)
+    } catch {
+        return null
+    }
+}
+const readingSpeed = new ReadingSpeed(parseSpeed(savedSettings()['reading-speed']), {
+    onChange: speed => saveSetting('reading-speed', JSON.stringify(speed)),
+})
+
+// The open book: { book: { id, format, ... }, reader, ready, mode, location, returnTo, turn }.
 // Keys only reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread),
 // 'bar' (Bar focus: ←/→ move between the Top Bar's buttons), or an overlay opened from
 // it: 'contents', 'go-to', 'font' or 'theme'. location is the Spread on screen, and
-// returnTo the one before the last jump, which the Return chip goes back to.
+// returnTo the one before the last jump, which the Return chip goes back to. turn is the
+// direction of a turn whose new Spread hasn't been reported yet (0 for none), so the reading
+// speed can tell a → turn from a jump.
 // Each reader draws into its own element in the stage, so one abandoned mid-open can't
 // touch the next book's pages.
 let session = null
@@ -43,9 +58,13 @@ const runQueuedTurns = async () => {
         while (session?.ready && queuedTurns !== 0) {
             const direction = Math.sign(queuedTurns)
             queuedTurns -= direction
-            const { reader } = session
-            const moved = await (direction > 0 ? reader.next() : reader.prev())
-            if (!moved) queuedTurns = 0 // hit the start/end of the book
+            const turning = session
+            turning.turn = direction
+            const moved = await (direction > 0 ? turning.reader.next() : turning.reader.prev())
+            if (!moved) { // hit the start/end of the book
+                queuedTurns = 0
+                turning.turn = 0
+            }
         }
     } catch (error) {
         queuedTurns = 0
@@ -63,6 +82,8 @@ const report = () => {
 // In Bar focus, focus starts on the button with this action, if given.
 const setMode = (mode, action) => {
     session.mode = mode
+    // The Top Bar or a menu is open, so the Spread on screen isn't just being read.
+    if (mode !== 'reading') readingSpeed.interrupt()
     if (mode === 'bar') focusTopBar(action)
     else blurTopBar()
     report()
@@ -75,6 +96,7 @@ const jump = async (navigate, { returning = false } = {}) => {
     const from = jumping.location
     setMode('reading')
     queuedTurns = 0
+    jumping.turn = 0
     let moved
     try {
         moved = await navigate(jumping.reader)
@@ -251,6 +273,16 @@ const onKey = e => {
     runQueuedTurns()
 }
 
+// A new Spread is on screen: time it for the reading speed, which learns from Spreads
+// read in Reading mode and left by a → turn. In Fit-width, → scrolls part of a page
+// rather than turning a whole Spread, so it can't be timed.
+const timeSpread = (open, { left, right }) => {
+    const turned = open.turn > 0
+    open.turn = 0
+    if (open.mode !== 'reading' || open.reader.fitWidth) readingSpeed.interrupt()
+    else readingSpeed.shown(left.length + right.length, { turned })
+}
+
 // The Library's book files are served (by the Android shell) at /books/<id>.
 const openBook = async book => {
     shelf.hidden = true
@@ -258,11 +290,14 @@ const openBook = async book => {
     queuedTurns = 0
     hud.textContent = 'Opening…'
     resetTopBar(book.format)
-    const opening = { book, ready: false, mode: 'reading', location: null, returnTo: null }
+    const opening = { book, ready: false, mode: 'reading', location: null, returnTo: null, turn: 0 }
     const onLocation = location => {
         if (session !== opening) return
-        opening.location = location
-        showTopBarLocation(book.format, location)
+        timeSpread(opening, location)
+        opening.location = {
+            ...location, minutesLeftInChapter: readingSpeed.minutesFor(location.charactersLeftInChapter),
+        }
+        showTopBarLocation(book.format, opening.location)
         report()
     }
     const pages = document.createElement('div')

@@ -20,8 +20,8 @@ export const phoneLink = () => parseLink(phone()?.link())
 // Reset the Access Key, locking out every connected phone; returns the new link.
 export const resetPhoneKey = () => parseLink(phone()?.resetKey())
 
-// The reader's saved settings, by name ('font', 'size', 'theme', 'layout'); a setting
-// never saved is missing. Values are strings.
+// The reader's saved settings, by name ('font', 'size', 'theme', 'layout', and the owner's
+// 'reading-speed' as JSON); a setting never saved is missing. Values are strings.
 const settings = () => globalThis.ReadInsteadSettings
 export const savedSettings = () => JSON.parse(settings()?.load() ?? '{}')
 
@@ -34,7 +34,8 @@ export const savePdfSetting = (bookId, name, value) => settings()?.savePdf(bookI
 
 // Report the Reader's state; the native side saves the Position, keeps the screen on
 // while a book is open, and will answer Now Reading from it. Either { open: false } or
-// { open: true, bookId, format, mode, position, pageLabel, progress, chapter, left, right },
-// where mode is 'reading', 'bar' (Bar focus), 'contents', 'go-to', 'font' or 'theme' (the
-// overlays), and an EPUB adds pagesLeftInChapter.
+// { open: true, bookId, format, mode, position, pageLabel, progress, chapter,
+// charactersLeftInChapter, minutesLeftInChapter, left, right }, where mode is 'reading', 'bar'
+// (Bar focus), 'contents', 'go-to', 'font' or 'theme' (the overlays), and an EPUB adds
+// pagesLeftInChapter. The time left is null until the reading speed is known.
 export const reportState = state => native()?.onReaderState(JSON.stringify(state))

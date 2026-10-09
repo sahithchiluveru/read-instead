@@ -22,3 +22,12 @@ test('parts it has no value for are left out', () => {
     assert.equal(statusLine('epub', { chapter: 'Cover', pageLabel: '3%', progress: 0.03, pagesLeftInChapter: null }),
         'Cover · 3%')
 })
+
+test('time left in chapter comes last, once there is an estimate', () => {
+    assert.equal(statusLine('pdf', { chapter: 'Chapter 7', pageLabel: 'Pages 212–213 of 500', progress: 0.42,
+        minutesLeftInChapter: 25 }), 'Chapter 7 · Pages 212–213 of 500 · 42% · ~25 min left in chapter')
+    assert.equal(statusLine('epub', { chapter: 'Chapter 7', pageLabel: '42%', progress: 0.42, pagesLeftInChapter: 12,
+        minutesLeftInChapter: 25 }), 'Chapter 7 · 42% · 12 pages left in chapter · ~25 min left in chapter')
+    assert.equal(statusLine('epub', { chapter: 'Chapter 7', pageLabel: '42%', progress: 0.42, pagesLeftInChapter: 12,
+        minutesLeftInChapter: null }), 'Chapter 7 · 42% · 12 pages left in chapter')
+})

@@ -64,12 +64,16 @@ export const startReader = async (books, covers = {}) => {
                 onReaderState: json => window.reportedStates.push(JSON.parse(json)),
             }
             window.savedSettings = { ...settings }
-            // Like ReaderSettings, only a PDF's Pairing and Fit-width are kept.
+            // Like ReaderSettings, only the reader's own settings are kept, and of a PDF's own
+            // only Pairing and Fit-width.
+            const names = ['font', 'size', 'theme', 'layout', 'reading-speed']
             const pdfNames = ['pairing', 'fit-width']
             window.savedPdfSettings = structuredClone(pdfSettings)
             window.ReadInsteadSettings = {
                 load: () => JSON.stringify(window.savedSettings),
-                save: (name, value) => { window.savedSettings[name] = value },
+                save: (name, value) => {
+                    if (names.includes(name)) window.savedSettings[name] = value
+                },
                 loadPdf: bookId => JSON.stringify(Object.fromEntries(Object.entries(window.savedPdfSettings[bookId] ?? {})
                     .filter(([name]) => pdfNames.includes(name)))),
                 savePdf: (bookId, name, value) => {
