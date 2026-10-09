@@ -13,23 +13,28 @@ const root = fileURLToPath(new URL('../..', import.meta.url))
 const types = {
     '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
     '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm',
-    '.epub': 'application/epub+zip', '.pdf': 'application/pdf',
+    '.svg': 'image/svg+xml',
 }
 
 // The TV's WebView lays out at 960×540 CSS px (1080p at 2× density).
 const viewport = { width: 960, height: 540 }
 
-// books: { 'name.epub': Buffer } served at /test-books/name.epub.
-export const startReader = async books => {
+// Plays the TV's Library: books are { id: Buffer } served at /books/<id>, covers are
+// { id: string } (SVG) served at /covers/<id>, where the Android shell serves them.
+export const startReader = async (books, covers = {}) => {
     // Each test file builds its own copy, so parallel test files don't race on dist/.
     const dist = await mkdtemp(join(tmpdir(), 'read-instead-reader-'))
     execFileSync(process.execPath, [join(root, 'scripts/build.mjs'), dist])
     const server = createServer(async (req, res) => {
         const path = decodeURIComponent(new URL(req.url, 'http://x').pathname)
-        const book = path.startsWith('/test-books/') && books[path.slice('/test-books/'.length)]
+        const [, collection, id] = path.match(/^\/(books|covers)\/([^/]+)$/) ?? []
         try {
-            const body = book || await readFile(join(dist, normalize(path)))
-            res.writeHead(200, { 'content-type': types[extname(path)] ?? 'application/octet-stream' })
+            const body = collection === 'books' ? books[id]
+                : collection === 'covers' ? covers[id]
+                : await readFile(join(dist, normalize(path)))
+            if (body === undefined) throw new Error('not found')
+            const type = collection === 'covers' ? types['.svg'] : types[extname(path)]
+            res.writeHead(200, { 'content-type': type ?? 'application/octet-stream' })
             res.end(body)
         } catch {
             res.writeHead(404).end()
@@ -39,14 +44,17 @@ export const startReader = async books => {
     const origin = `http://127.0.0.1:${server.address().port}`
     const browser = await chromium.launch()
 
-    // A fresh app launch. positions plays the native side's persisted Positions; links
-    // are what successive calls for the Phone Page link return (the first, then one per
-    // key reset).
-    const launch = async ({ positions = {}, links = [] } = {}) => {
+    // A fresh app launch. library is the Shelf's book records, in the native side's order
+    // (tests change window.libraryBooks to add books); positions plays the persisted
+    // Positions; links are what successive calls for the Phone Page link return (the
+    // first, then one per key reset).
+    const launch = async ({ library = [], positions = {}, links = [] } = {}) => {
         const context = await browser.newContext({ viewport })
         const page = await context.newPage()
         page.on('pageerror', error => console.error('page error:', error))
-        await page.addInitScript(({ positions, links }) => {
+        await page.addInitScript(({ library, positions, links }) => {
+            window.libraryBooks = library
+            window.ReadInsteadLibrary = { books: () => JSON.stringify(window.libraryBooks) }
             window.reportedStates = []
             window.ReadInsteadNative = {
                 loadPosition: bookId => positions[bookId] ?? null,
@@ -62,7 +70,7 @@ export const startReader = async books => {
                     return window.ReadInsteadPhone.link()
                 },
             }
-        }, { positions, links })
+        }, { library, positions, links })
         await page.goto(`${origin}/src/index.html`)
         return new App(page, context)
     }
@@ -102,6 +110,7 @@ class App {
         return this.state()
     }
 
+    // Open a book ({ id, format }) the way the Shelf does.
     open(book) {
         return this.#nextState(() => this.page.evaluate(book => { window.readInstead.open(book) }, book))
     }

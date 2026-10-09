@@ -20,9 +20,8 @@ const qrPath = svg => svg.match(/<path[^>]* d="([^"]+)"/)[1]
 const shownQr = app => app.page.evaluate(() =>
     document.querySelector('#add-books-screen .qr path')?.getAttribute('d'))
 
-// Move focus along the home screen to the Add books tile and press OK.
+// On the empty Shelf, the Add books tile has focus: press OK.
 const openAddBooks = async app => {
-    for (let i = 0; i < 5; i++) await app.page.keyboard.press('ArrowRight')
     assert.equal(await app.page.evaluate(() => document.activeElement.id), 'add-books')
     await app.page.keyboard.press('Enter')
 }
@@ -32,7 +31,7 @@ describe('the Add books screen', () => {
         const app = await reader.launch({ links })
         await openAddBooks(app)
         assert.equal(await app.page.isVisible('#add-books-screen'), true)
-        assert.equal(await app.page.isVisible('#home'), false)
+        assert.equal(await app.page.isVisible('#shelf'), false)
         assert.equal(await shownQr(app), qrPath(renderSVG(links[0].url)))
         assert.match(await app.page.textContent('#add-books-screen'), /192\.168\.1\.50:8765/)
         await app.close()
@@ -51,11 +50,11 @@ describe('the Add books screen', () => {
         await app.close()
     })
 
-    test('Back returns to the home screen with the tile focused', async () => {
+    test('Back returns to the Shelf with the tile focused', async () => {
         const app = await reader.launch({ links })
         await openAddBooks(app)
         assert.equal(await app.back(), true)
-        assert.equal(await app.page.isVisible('#home'), true)
+        assert.equal(await app.page.isVisible('#shelf'), true)
         assert.equal(await app.page.isVisible('#add-books-screen'), false)
         assert.equal(await app.page.evaluate(() => document.activeElement.id), 'add-books')
         await app.close()

@@ -18,44 +18,140 @@ html, body {
     color: var(--text);
     font-family: Georgia, serif;
 }
-#home {
-    padding: 44px 48px;
+/* The Shelf: six covers to a row across the 864 dp between the side margins. */
+#shelf {
+    height: 100%;
+    box-sizing: border-box;
+    padding: 36px 48px 27px;
+    overflow-y: auto;
+    scrollbar-width: none;
 }
-#home h1 {
-    margin: 0 0 8px;
-    font-size: 32px;
+#shelf h1 {
+    margin: 0 0 20px;
+    font-size: 28px;
 }
-#home p {
-    color: var(--dim);
+#shelf .grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 28px 24px;
+    align-items: start;
 }
-.books {
-    display: flex;
-    gap: 24px;
-    margin-top: 32px;
-}
-.books button {
+.tile {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    width: 220px;
-    padding: 20px;
-    border: 2px solid transparent;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--text) 8%, transparent);
+    gap: 4px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
     color: var(--text);
     font: inherit;
-    font-size: 20px;
     text-align: left;
-    transition: transform 150ms;
 }
-.books button small {
-    color: var(--dim);
-    font-size: 14px;
-}
-.books button:focus {
+.tile:focus {
     outline: none;
+}
+.tile .cover {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 2 / 3;
+    margin-bottom: 4px;
+    overflow: hidden;
+    border: 3px solid transparent;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+    transition: transform 150ms, border-color 150ms;
+}
+.tile:focus .cover {
     border-color: var(--accent);
     transform: scale(1.05);
+}
+.tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.tile .title-card {
+    padding: 10px;
+    font-size: 15px;
+    line-height: 1.3;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.tile .cover.add {
+    color: var(--dim);
+    font: 300 56px system-ui, sans-serif;
+}
+.tile .title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 1.25;
+}
+.tile .author, .tile .unreadable {
+    overflow: hidden;
+    color: var(--dim);
+    font: 12px system-ui, sans-serif;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.tile .unreadable {
+    white-space: normal;
+}
+.tile .progress {
+    height: 3px;
+    margin-top: 4px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--text) 15%, transparent);
+}
+.tile .progress span {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+}
+/* With no books, the Phone Page QR code fills the row before the Add books tile. */
+#shelf .empty {
+    grid-column: 1 / span 4;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+}
+#shelf .empty .qr svg {
+    display: block;
+    width: 220px;
+    height: 220px;
+    padding: 12px;
+    background: #FFFFFF;
+    border-radius: 12px;
+}
+#shelf .empty .hint {
+    margin: 0 0 8px;
+    font-size: 22px;
+}
+#shelf .empty .address {
+    margin: 0;
+    color: var(--dim);
+    font: 18px system-ui, sans-serif;
+}
+#toast {
+    position: fixed;
+    left: 50%;
+    bottom: 40px;
+    z-index: 10;
+    transform: translateX(-50%);
+    max-width: 640px;
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: var(--text);
+    color: var(--bg);
+    font: 16px system-ui, sans-serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 #add-books-screen {
     height: 100%;

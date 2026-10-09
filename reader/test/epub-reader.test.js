@@ -3,14 +3,14 @@ import { after, before, describe, test } from 'node:test'
 import { chaptersEpub, fixedLayoutEpub } from './support/epub-fixtures.js'
 import { startReader } from './support/reader-harness.js'
 
-const chapters = { id: 'chapters', format: 'epub', src: '/test-books/chapters.epub' }
-const fixedLayout = { id: 'fixed-layout', format: 'epub', src: '/test-books/fixed-layout.epub' }
+const chapters = { id: 'chapters', format: 'epub' }
+const fixedLayout = { id: 'fixed-layout', format: 'epub' }
 
 let reader
 before(async () => {
     reader = await startReader({
-        'chapters.epub': chaptersEpub(),
-        'fixed-layout.epub': fixedLayoutEpub(),
+        chapters: chaptersEpub(),
+        'fixed-layout': fixedLayoutEpub(),
     })
 })
 after(() => reader.close())
@@ -134,12 +134,12 @@ describe('reading an EPUB', () => {
         await app.close()
     })
 
-    test('Back leaves the book and returns to the home screen', async () => {
+    test('Back leaves the book and returns to the Shelf', async () => {
         const app = await reader.launch()
         await app.open(chapters)
         assert.equal(await app.back(), true)
         assert.deepEqual(await app.state(), { open: false })
-        assert.equal(await app.page.isVisible('#home'), true)
+        assert.equal(await app.page.isVisible('#shelf'), true)
         assert.equal(await app.back(), false) // nothing left to close: the app exits
         await app.close()
     })

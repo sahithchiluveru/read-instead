@@ -1,54 +1,22 @@
 package io.github.sahithchiluveru.readinstead.phone
 
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Seam 1: the Phone API, exercised over real HTTP on the JVM. */
 class PhoneApiTest {
-    private class MemoryStore : AccessKey.Store {
-        var saved: String? = null
-        override fun load() = saved
-        override fun save(key: String) {
-            saved = key
-        }
-    }
-
-    private val store = MemoryStore()
-    private val accessKey = AccessKey(store)
-    private val server = PhoneServer(accessKey, port = 0)
-    private val client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build()
-    private lateinit var base: String
-
-    @BeforeTest
-    fun start() {
-        base = "http://127.0.0.1:${server.start()}"
-    }
+    private val phone = PhoneHarness()
+    private val accessKey = phone.accessKey
 
     @AfterTest
-    fun stop() = server.stop()
+    fun stop() = phone.close()
 
-    private fun get(path: String, cookie: String? = null): HttpResponse<String> {
-        val request = HttpRequest.newBuilder(URI("$base$path"))
-        cookie?.let { request.header("Cookie", it) }
-        return client.send(request.build(), HttpResponse.BodyHandlers.ofString())
-    }
-
-    /** Scans the QR code: visits the key URL and returns the cookie the phone keeps. */
-    private fun connect(key: String = accessKey.current): String {
-        val response = get("/?k=$key")
-        assertEquals(302, response.statusCode())
-        val setCookie = assertNotNull(response.headers().firstValue("Set-Cookie").orElse(null))
-        return setCookie.substringBefore(';')
-    }
+    private fun get(path: String, cookie: String? = null) = phone.get(path, cookie)
+    private fun connect(key: String = accessKey.current) = phone.connect(key)
 
     private fun assertRefused(response: HttpResponse<String>) {
         assertEquals(401, response.statusCode())
@@ -85,9 +53,7 @@ class PhoneApiTest {
 
     @Test
     fun `the key only connects on a page visit, not on other requests`() {
-        val post = HttpRequest.newBuilder(URI("$base/api/ping?k=${accessKey.current}"))
-            .POST(HttpRequest.BodyPublishers.noBody()).build()
-        assertRefused(client.send(post, HttpResponse.BodyHandlers.ofString()))
+        assertRefused(phone.post("/api/ping?k=${accessKey.current}"))
     }
 
     @Test
@@ -113,8 +79,8 @@ class PhoneApiTest {
     @Test
     fun `the key survives restarts and is long and random`() {
         val key = accessKey.current
-        assertEquals(key, AccessKey(store).current)
+        assertEquals(key, AccessKey(phone.keyStore).current)
         assertTrue(key.length >= 22, "at least 128 bits")
-        assertNotEquals(key, AccessKey(MemoryStore()).current)
+        assertNotEquals(key, AccessKey(MemoryKeyStore()).current)
     }
 }

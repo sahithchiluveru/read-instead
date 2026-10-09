@@ -8,13 +8,21 @@
 <script type="module" src="main.js"></script>
 </head>
 <body>
-<main id="home">
+<main id="shelf">
     <h1>Read Instead</h1>
-    <p>Sample books — pick one, then use ← → on the remote.</p>
-    <div class="books">
-        <button data-id="moby-dick" data-format="pdf" data-src="../books/moby-dick.pdf">Moby-Dick<small>PDF · 530 pages</small></button>
-        <button data-id="war-and-peace" data-format="epub" data-src="../books/war-and-peace.epub">War and Peace<small>EPUB · large novel</small></button>
-        <button id="add-books">Add books<small>From your phone</small></button>
+    <div class="grid">
+        <div class="empty" hidden>
+            <div class="qr"></div>
+            <div>
+                <p class="hint"></p>
+                <p class="address"></p>
+            </div>
+        </div>
+        <button id="add-books" class="tile">
+            <span class="cover add" aria-hidden="true">+</span>
+            <span class="title">Add books</span>
+            <span class="author">From your phone</span>
+        </button>
     </div>
 </main>
 <section id="add-books-screen" hidden>
@@ -28,5 +36,6 @@
     <div id="stage"></div>
     <output id="hud"></output>
 </section>
+<output id="toast" hidden></output>
 </body>
 </html>

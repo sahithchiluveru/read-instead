@@ -15,12 +15,27 @@
     .banner h2 { font-size: 18px; margin: 0 0 4px; }
     .banner p { margin: 0; color: var(--dim); }
     body.unreachable .banner.unreachable, body.locked-out .banner.locked-out { display: block; }
-    body.unreachable .status, body.locked-out .status { display: none; }
+    body.unreachable .status, body.locked-out .status, body.unreachable .upload, body.locked-out .upload { display: none; }
+    .pick { display: block; padding: 18px; border-radius: 12px; background: var(--accent); color: #fff;
+        font: 600 18px system-ui, sans-serif; text-align: center; }
+    .pick input { display: none; }
+    .uploads { list-style: none; margin: 20px 0 0; padding: 0; }
+    .uploads li { padding: 12px 0; border-bottom: 1px solid #0001; }
+    .uploads .name { overflow-wrap: anywhere; }
+    .uploads progress { display: block; width: 100%; height: 6px; margin: 8px 0 4px; accent-color: var(--accent); }
+    .uploads .result { color: var(--dim); font: 15px system-ui, sans-serif; }
+    .uploads .failed .result { color: #A33; }
 </style>
 </head>
 <body>
 <h1>Read Instead</h1>
 <p class="status">Connected to your TV</p>
+<section class="upload">
+    <label class="pick">Upload books
+        <input type="file" multiple accept=".epub,.pdf,application/epub+zip,application/pdf">
+    </label>
+    <ul class="uploads"></ul>
+</section>
 <section class="banner unreachable" role="alert">
     <h2>TV app not reachable</h2>
     <p>Open Read Instead on the TV, on the same Wi-Fi as this phone. This page reconnects by itself.</p>
@@ -30,6 +45,60 @@
     <p>The TV's key was reset. Scan the QR code on the TV's Add books screen to connect again.</p>
 </section>
 <script>
+    // Uploads go one file at a time, each its own request, so each gets its own progress bar.
+    const picker = document.querySelector('.pick input')
+    const list = document.querySelector('.uploads')
+    const supported = name => /\.(epub|pdf)$/i.test(name)
+    const messages = {
+        added: book => book.unreadable ? "Added, but the TV couldn't open this book" : 'Added to your shelf',
+        duplicate: () => 'Already on your shelf',
+        unsupported: () => 'Only EPUB and PDF are supported',
+    }
+    let queue = Promise.resolve()
+
+    const upload = (file, row) => new Promise(resolve => {
+        const progress = row.querySelector('progress')
+        const show = (text, failed = false) => {
+            progress.remove()
+            row.querySelector('.result').textContent = text
+            row.classList.toggle('failed', failed)
+            resolve()
+        }
+        const request = new XMLHttpRequest()
+        request.open('POST', '/api/books')
+        request.upload.onprogress = e => { if (e.lengthComputable) progress.value = e.loaded / e.total }
+        request.onload = () => {
+            if (request.status === 401) return show('Disconnected: scan the QR code on the TV again', true)
+            if (request.status !== 200) return show("The TV couldn't save this book", true)
+            const [result] = JSON.parse(request.responseText).results
+            show(messages[result.status](result.book), result.status === 'unsupported')
+        }
+        request.onerror = () => show('Upload failed: is Read Instead still open on the TV?', true)
+        const form = new FormData()
+        form.append('books', file, file.name)
+        request.send(form)
+    })
+
+    picker.addEventListener('change', () => {
+        for (const file of picker.files) {
+            const row = document.createElement('li')
+            row.innerHTML = '<div class="name"></div><progress max="1" value="0"></progress><div class="result">Waiting…</div>'
+            row.querySelector('.name').textContent = file.name
+            list.prepend(row)
+            if (!supported(file.name)) {
+                row.querySelector('progress').remove()
+                row.querySelector('.result').textContent = messages.unsupported()
+                row.classList.add('failed')
+                continue
+            }
+            queue = queue.then(() => {
+                row.querySelector('.result').textContent = 'Uploading…'
+                return upload(file, row)
+            })
+        }
+        picker.value = ''
+    })
+
     // The TV app only serves this page while it's open, so keep checking it's still there.
     const check = async () => {
         let state = ''

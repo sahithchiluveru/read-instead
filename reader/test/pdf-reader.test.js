@@ -3,17 +3,17 @@ import { after, before, describe, test } from 'node:test'
 import { bookPdf, paperPdf, slidesPdf, twoPageRightPdf } from './support/pdf-fixtures.js'
 import { startReader } from './support/reader-harness.js'
 
-const book = name => ({ id: name, format: 'pdf', src: `/test-books/${name}.pdf` })
+const book = name => ({ id: name, format: 'pdf' })
 const page = n => `Page ${n}\nSecond line of page ${n}`
 const pagesShown = state => [state.left, state.right].map(text => text.split('\n')[0])
 
 let reader
 before(async () => {
     reader = await startReader({
-        'book.pdf': bookPdf(),
-        'paper.pdf': paperPdf(),
-        'two-page-right.pdf': twoPageRightPdf(),
-        'slides.pdf': slidesPdf(),
+        book: bookPdf(),
+        paper: paperPdf(),
+        'two-page-right': twoPageRightPdf(),
+        slides: slidesPdf(),
     })
 })
 after(() => reader.close())

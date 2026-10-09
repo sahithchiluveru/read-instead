@@ -17,6 +17,8 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import androidx.webkit.WebViewFeature
+import io.github.sahithchiluveru.readinstead.library.Book
+import io.github.sahithchiluveru.readinstead.library.toJson
 
 internal const val TAG = "ReadInstead"
 private const val READER_URL = "https://appassets.androidplatform.net/assets/reader/src/index.html"
@@ -26,17 +28,32 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private val app get() = application as ReadInsteadApp
 
+    // A book arrived from the phone: the Shelf shows it at once, with a toast.
+    private val onBookAdded: (Book) -> Unit = { book ->
+        runOnUiThread { webView.evaluateJavascript("window.readInstead?.bookAdded(${book.toJson()})", null) }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Served from a real https origin so ES modules, workers and fetch() work.
+        // Served from a real https origin so ES modules, workers and fetch() work. The
+        // Library's book files and covers are served beside the reader, by book id.
+        val library = app.library
         val assets = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/books/") { id ->
+                val book = library.book(id) ?: return@addPathHandler null
+                runCatching { WebResourceResponse(book.format.mimeType, null, library.file(id)!!.inputStream()) }
+                    .getOrNull()
+            }
+            .addPathHandler("/covers/") { id ->
+                library.cover(id)?.let { WebResourceResponse(it.type, null, it.bytes.inputStream()) }
+            }
             .build()
 
         // The screen stays awake (no screensaver or ambient mode) only while a book is open.
-        val bridge = ReaderSessionBridge(getSharedPreferences("positions", MODE_PRIVATE)) { open ->
+        val bridge = ReaderSessionBridge(library) { open ->
             runOnUiThread { keepScreenOn(open) }
         }
 
@@ -60,12 +77,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
             addJavascriptInterface(bridge, "ReadInsteadNative")
+            addJavascriptInterface(LibraryBridge(library), "ReadInsteadLibrary")
             val connectivity = getSystemService(ConnectivityManager::class.java)
             addJavascriptInterface(PhoneLinkBridge(app.accessKey, app.phoneServer, connectivity), "ReadInsteadPhone")
             isFocusable = true
             isFocusableInTouchMode = true
         }
         setContentView(webView)
+        library.addListener(onBookAdded)
         webView.loadUrl(READER_URL)
         webView.requestFocus()
 
@@ -97,6 +116,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        app.library.removeListener(onBookAdded)
         webView.destroy()
         super.onDestroy()
     }

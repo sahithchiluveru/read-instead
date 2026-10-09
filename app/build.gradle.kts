@@ -31,8 +31,8 @@ android {
 
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/reader-assets"))
     androidResources {
-        // Keep books and pdf.js data uncompressed-friendly and fast to stream.
-        noCompress += listOf("pdf", "epub", "wasm")
+        // Keep pdf.js's WebAssembly uncompressed and fast to stream.
+        noCompress += listOf("wasm")
     }
 }
 
@@ -44,7 +44,6 @@ val buildReader by tasks.registering(Exec::class) {
     workingDir = readerDir.asFile
     commandLine(npm, "run", "build")
     inputs.dir(readerDir.dir("src"))
-    inputs.dir(readerDir.dir("fixtures"))
     inputs.file(readerDir.file("package-lock.json"))
     inputs.file(readerDir.file("scripts/build.mjs"))
     outputs.dir(readerDir.dir("dist"))

@@ -2,6 +2,7 @@ package io.github.sahithchiluveru.readinstead
 
 import android.app.Application
 import android.util.Log
+import io.github.sahithchiluveru.readinstead.library.Library
 import io.github.sahithchiluveru.readinstead.phone.AccessKey
 import io.github.sahithchiluveru.readinstead.phone.PhoneServer
 import java.util.concurrent.Executors
@@ -11,8 +12,16 @@ import java.util.concurrent.Executors
  * recreated Activity can't race the old one for its port.
  */
 class ReadInsteadApp : Application() {
-    val accessKey by lazy { AccessKey(PrefsKeyStore(getSharedPreferences("phone", MODE_PRIVATE))) }
-    val phoneServer by lazy { PhoneServer(accessKey) }
+    val library by lazy { Library(filesDir.resolve("library"), AndroidCovers()) }
+
+    // The Access Key is kept with the app's other settings, in the Library's store.
+    val accessKey by lazy {
+        AccessKey(object : AccessKey.Store {
+            override fun load() = library.setting("accessKey")
+            override fun save(key: String) = library.saveSetting("accessKey", key)
+        })
+    }
+    val phoneServer by lazy { PhoneServer(accessKey, library) }
 
     // Starting and stopping the server touches sockets, so it stays off the main thread,
     // and one executor keeps every start and stop in order.

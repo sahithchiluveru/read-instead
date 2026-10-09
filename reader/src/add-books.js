@@ -2,25 +2,27 @@ import { renderSVG } from '../vendor/uqr/dist/index.mjs'
 import { phoneLink, resetPhoneKey } from './bridge.js'
 
 // The Add books screen: a QR code of the Phone Page link (carrying the Access Key) and
-// the written address. It opens from the home screen's Add books tile. Reset key needs
-// a second press, because every phone then has to scan again.
-const home = document.getElementById('home')
-const tile = document.getElementById('add-books')
+// the written address. It opens from the Shelf's Add books tile. Reset key needs a
+// second press, because every phone then has to scan again.
+const shelf = document.getElementById('shelf')
 const screen = document.getElementById('add-books-screen')
-const qr = screen.querySelector('.qr')
-const address = screen.querySelector('.address')
-const hint = screen.querySelector('.hint')
 const resetButton = document.getElementById('reset-key')
 const resetLabel = resetButton.textContent
 let confirmingReset = false
 
-const show = link => {
+// Draws the Phone Page link into an element holding .qr, .hint and .address (here, and
+// on the empty Shelf). Returns whether there's a link to scan.
+export const drawLink = (target, link) => {
     const ink = getComputedStyle(document.documentElement).getPropertyValue('--text').trim()
-    qr.innerHTML = link.url ? renderSVG(link.url, { blackColor: ink, whiteColor: '#FFFFFF' }) : ''
-    address.textContent = link.address ?? ''
-    hint.textContent = link.url ? 'Scan with your phone to add books'
+    target.querySelector('.qr').innerHTML = link.url ? renderSVG(link.url, { blackColor: ink, whiteColor: '#FFFFFF' }) : ''
+    target.querySelector('.address').textContent = link.address ?? ''
+    target.querySelector('.hint').textContent = link.url ? 'Scan with your phone to add books'
         : link.error ?? 'Connect the TV to Wi-Fi to add books'
-    resetButton.hidden = !link.url
+    return Boolean(link.url)
+}
+
+const show = link => {
+    resetButton.hidden = !drawLink(screen, link)
     if (resetButton.hidden) document.body.focus()
 }
 
@@ -39,7 +41,7 @@ resetButton.addEventListener('blur', () => setConfirming(false))
 export const isAddBooksOpen = () => !screen.hidden
 
 export const openAddBooks = () => {
-    home.hidden = true
+    shelf.hidden = true
     screen.hidden = false
     setConfirming(false)
     resetButton.hidden = false
@@ -49,6 +51,6 @@ export const openAddBooks = () => {
 
 export const closeAddBooks = () => {
     screen.hidden = true
-    home.hidden = false
-    tile.focus()
+    shelf.hidden = false
+    document.getElementById('add-books').focus()
 }

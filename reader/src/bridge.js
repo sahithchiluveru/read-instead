@@ -1,10 +1,15 @@
 // The web side of the native ↔ WebView boundary. The Android shell injects
-// `ReadInsteadNative` (the Reader session bridge) and `ReadInsteadPhone` (the Phone Page
-// link); in a plain browser neither exists and nothing is persisted.
+// `ReadInsteadNative` (the Reader session bridge), `ReadInsteadLibrary` (the books on the
+// TV) and `ReadInsteadPhone` (the Phone Page link); in a plain browser none exists and
+// nothing is persisted.
 const native = () => globalThis.ReadInsteadNative
 
 // The saved Position of a book, or null to start from the beginning.
 export const loadPosition = bookId => native()?.loadPosition(bookId) ?? null
+
+// The Library's books, most recently read first:
+// [{ id, format, title, author, progress, unreadable, coverType, ... }].
+export const libraryBooks = () => JSON.parse(globalThis.ReadInsteadLibrary?.books() ?? '[]')
 
 // The Phone Page link for the Add books screen: { address, url, error }. The url carries
 // the Access Key, for the QR code; without one (e.g. no Wi-Fi), error says why.

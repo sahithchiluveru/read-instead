@@ -2,15 +2,16 @@ import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
 import { loadPosition, reportState } from './bridge.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
+import { bookAdded, initShelf, renderShelf } from './shelf.js'
 
 const readers = { pdf: PdfReader, epub: EpubReader }
 
-const home = document.getElementById('home')
+const shelf = document.getElementById('shelf')
 const readerScreen = document.getElementById('reader')
 const stage = document.getElementById('stage')
 const hud = document.getElementById('hud')
 
-// The open book: { book: { id, format, src }, reader, ready }. Keys only reach the
+// The open book: { book: { id, format, ... }, reader, ready }. Keys only reach the
 // reader once it's ready. Each reader draws into its own element in the stage, so one
 // abandoned mid-open can't touch the next book's pages.
 let session = null
@@ -56,8 +57,9 @@ const onKey = e => {
     runQueuedTurns()
 }
 
+// The Library's book files are served (by the Android shell) at /books/<id>.
 const openBook = async book => {
-    home.hidden = true
+    shelf.hidden = true
     readerScreen.hidden = false
     queuedTurns = 0
     hud.textContent = 'Opening…'
@@ -72,7 +74,7 @@ const openBook = async book => {
     opening.reader = new readers[book.format](pages, { onKey, onLocation: report })
     session = opening
     try {
-        await opening.reader.open(book.src, loadPosition(book.id))
+        await opening.reader.open(`/books/${encodeURIComponent(book.id)}`, loadPosition(book.id))
         await nextFrame()
         if (session !== opening) { // Back was pressed while it was opening
             opening.reader.close()
@@ -92,6 +94,7 @@ const openBook = async book => {
 }
 
 const closeBook = () => {
+    const closed = session?.book.id
     if (session?.ready) {
         try {
             session.reader.close()
@@ -104,32 +107,23 @@ const closeBook = () => {
     stage.replaceChildren()
     reportState({ open: false })
     readerScreen.hidden = true
-    home.hidden = false
-    home.querySelector('button').focus()
+    shelf.hidden = false
+    renderShelf(closed) // the Library has moved this book to the front, with its new progress
 }
 
 addEventListener('keydown', onKey)
-home.addEventListener('click', e => {
-    const button = e.target.closest('button')
-    if (button?.id === 'add-books') openAddBooks()
-    else if (button) openBook({ ...button.dataset })
-})
-home.addEventListener('keydown', e => {
-    const direction = arrowDirection(e.key)
-    if (!direction) return
-    const buttons = [...home.querySelectorAll('button')]
-    const i = buttons.indexOf(document.activeElement)
-    buttons[Math.max(0, Math.min(buttons.length - 1, i + direction))].focus()
-})
-home.querySelector('button').focus()
+initShelf({ openBook, openAddBooks })
 
 window.readInstead = {
-    // Open a book: { id, format: 'epub' | 'pdf', src }.
+    // Open a book from the Library: { id, format: 'epub' | 'pdf' }.
     open: openBook,
+    // Called by the Android shell when a book arrives from the phone.
+    bookAdded,
     // Called by the Android shell on Back; returns true if the reader handled it.
     back() {
         if (isAddBooksOpen()) {
             closeAddBooks()
+            renderShelf() // an empty Shelf's QR code must show a reset key
             return true
         }
         if (readerScreen.hidden) return false
