@@ -66,17 +66,20 @@ class AndroidCovers : Covers {
     }
 
     /**
-     * A page at least twice the screen's height is decoded at a power-of-two fraction of its
-     * size (inSampleSize: cheap, and the full-size bitmap never exists), keeping it at least
-     * as tall as the screen, and re-encoded as JPEG. Ordinary scans (up to about 2000 px
-     * tall) pass through untouched, costing nothing but reading their header.
+     * A page at least twice the screen's size (in height or width) is decoded at a
+     * power-of-two fraction of its size (inSampleSize: cheap, and the full-size bitmap never
+     * exists), keeping it at least big enough to fill the screen, and re-encoded as JPEG.
+     * Ordinary scans (up to about 2000 px tall) pass through untouched, costing nothing but
+     * reading their header.
      */
     override fun fitPage(page: Cover): Cover {
         val bytes = page.bytes
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        if (bounds.outHeight < SCREEN_HEIGHT * 2) return page
-        val sample = generateSequence(2) { it * 2 }.takeWhile { bounds.outHeight / it >= SCREEN_HEIGHT }.last()
+        // Halved, the page would still be at least the screen's height or width.
+        val halvable = { sample: Int -> bounds.outHeight / sample >= SCREEN_HEIGHT || bounds.outWidth / sample >= SCREEN_WIDTH }
+        if (bounds.outWidth <= 0 || !halvable(2)) return page
+        val sample = generateSequence(2) { it * 2 }.takeWhile(halvable).last()
         val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
             BitmapFactory.Options().apply { inSampleSize = sample }) ?: return page
         // Drawn over white, since JPEG has no transparency.
@@ -108,6 +111,7 @@ class AndroidCovers : Covers {
 
         /** The TV's screen height in device pixels (the WebView's 540 dp at 2× density). */
         const val SCREEN_HEIGHT = 1080
+        const val SCREEN_WIDTH = 1920
         const val PAGE_QUALITY = 90
     }
 }

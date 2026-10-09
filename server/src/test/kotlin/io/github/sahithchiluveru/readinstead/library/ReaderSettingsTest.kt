@@ -117,6 +117,13 @@ class ReaderSettingsTest {
     }
 
     @Test
+    fun `a PDF's settings saved before CBZ support, as pdfSettings, still load`() {
+        dir.resolve("library.json").writeText("""{"books":[{"id":"abc","format":"pdf","title":"Old",
+            "addedAt":1,"pdfSettings":{"pairing":"paper"}}],"settings":{}}""")
+        assertEquals(JsonObject(mapOf("pairing" to JsonPrimitive("paper"))), ReaderSettings(library()).savedFor("abc"))
+    }
+
+    @Test
     fun `deleting a book deletes its settings`() {
         val library = library()
         val id = library.addBook()

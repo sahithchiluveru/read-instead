@@ -40,11 +40,11 @@ class ComicPagesTest {
     fun `pages are in natural filename order, folders included`() {
         val id = add("vol.cbz", FixtureBooks.cbzOf(
             "Chapter 10/page1.jpg", "Chapter 2/page10.jpg", "Chapter 2/Page2.JPG", "Chapter 2/page1.jpeg",
-            "cover.png", "Chapter 2/page01b.webp", "Chapter 1/p 9.gif",
+            "cover.png", "Chapter 2 extra/1.jpg", "Chapter 2/page01b.webp", "Chapter 1/p 9.gif",
         ))
         assertEquals(listOf(
             "Chapter 1/p 9.gif", "Chapter 2/page1.jpeg", "Chapter 2/page01b.webp", "Chapter 2/Page2.JPG",
-            "Chapter 2/page10.jpg", "Chapter 10/page1.jpg", "cover.png",
+            "Chapter 2/page10.jpg", "Chapter 2 extra/1.jpg", "Chapter 10/page1.jpg", "cover.png",
         ), pages(id))
     }
 
@@ -93,13 +93,5 @@ class ComicPagesTest {
         val id = add("broken.cbz", FixtureBooks.garbage)
         assertNull(library.pagesJson(id))
         assertNull(library.page(id, 1))
-    }
-
-    @Test
-    fun `a record saved before per-book settings were general keeps its PDF settings`() {
-        dir.resolve("library.json").writeText("""{"books":[{"id":"abc","format":"pdf","title":"Old",
-            "addedAt":1,"pdfSettings":{"pairing":"paper"}}],"settings":{}}""")
-        val reopened = Library(dir, object : Covers {})
-        assertEquals(mapOf("pairing" to "paper"), reopened.book("abc")!!.settings)
     }
 }

@@ -26,7 +26,7 @@ internal object CbzInfo {
             title = field("Title"),
             author = field("Writer"),
             cover = zip.readImage(first, MAX_COVER_BYTES)?.let { Cover(it, typeOf(first)) },
-            rightToLeft = field("Manga") == "YesAndRightToLeft",
+            rightToLeft = field("Manga").equals("YesAndRightToLeft", ignoreCase = true),
         )
     }
 
@@ -43,17 +43,28 @@ internal object CbzInfo {
     private fun pages(zip: ZipFile): List<ZipEntry> = zip.entries().asSequence()
         .filter { !it.isDirectory && extension(it.name) in imageTypes }
         .filter { entry -> entry.name.split('/').none { it.startsWith('.') || it == "__MACOSX" } }
-        .sortedWith(compareBy(naturalOrder) { it.name })
+        .sortedWith(compareBy(pathOrder) { it.name })
         .toList()
 
     private fun extension(name: String) = name.substringAfterLast('.', "").lowercase()
     private fun typeOf(entry: ZipEntry) = imageTypes.getValue(extension(entry.name))
 
+    /** Paths folder by folder, each name in [naturalOrder], so `Chapter 2/` comes before `Chapter 2 extra/`. */
+    private val pathOrder: Comparator<String> = Comparator { a, b ->
+        val foldersA = a.split('/')
+        val foldersB = b.split('/')
+        for (i in 0 until minOf(foldersA.size, foldersB.size)) {
+            val order = naturalOrder.compare(foldersA[i], foldersB[i])
+            if (order != 0) return@Comparator order
+        }
+        foldersA.size - foldersB.size
+    }
+
     /**
      * Natural filename order: runs of digits compare as numbers (page2 before page10), the
      * rest ignoring case; names that still tie (page1, page01) fall back to plain order.
      */
-    val naturalOrder: Comparator<String> = Comparator { a, b ->
+    private val naturalOrder: Comparator<String> = Comparator { a, b ->
         val chunksA = chunks(a)
         val chunksB = chunks(b)
         for (i in 0 until minOf(chunksA.size, chunksB.size)) {

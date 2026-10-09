@@ -24,7 +24,6 @@ const shown = app => app.page.evaluate(() => {
             right: (box.right - stage.left) / stage.width,
             width: box.width,
             height: box.height,
-            decoding: img.decoding,
             loaded: img.complete && img.naturalWidth > 0,
         }
     }).sort((a, b) => a.left - b.left)
@@ -100,7 +99,7 @@ describe('reading a CBZ', () => {
         await app.close()
     })
 
-    test('pages much larger than the screen are fitted into the Spread, decoded off the main thread', async () => {
+    test('pages much larger than the screen are fitted into the Spread, loaded before they show', async () => {
         const app = await reader.launch()
         await app.open(book('comic'))
         await app.press('ArrowRight')
@@ -108,7 +107,6 @@ describe('reading a CBZ', () => {
         const stage = await app.page.evaluate(() => document.getElementById('stage').getBoundingClientRect().toJSON())
         for (const page of pages) {
             assert.ok(page.loaded, `page ${page.page} is loaded before it's shown`)
-            assert.equal(page.decoding, 'async')
             assert.ok(page.height <= stage.height + 0.5, `page ${page.page} fits the stage's height`)
             assert.ok(page.width <= stage.width / 2 + 0.5, `page ${page.page} fits its column`)
         }

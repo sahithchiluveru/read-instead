@@ -14,8 +14,7 @@ const RETURN_CHIP_MS = 5000
 let returnChipTimer = 0
 
 // The buttons this book offers, in order (Pairing and Fit-width are PDF-only, Right to
-// left CBZ-only), then the
-// Return chip if there's somewhere to return to.
+// left CBZ-only), then the Return chip if there's somewhere to return to.
 const buttons = () => [...buttonRow.querySelectorAll('button'), returnChip].filter(button => !button.hidden)
 
 // A freshly opened book: an empty, visible bar with the buttons for its format.

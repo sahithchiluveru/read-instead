@@ -162,7 +162,7 @@ export class CbzReader {
     }
 
     // A page as an <img>, decoded off the main thread before it's shown. One that fails
-    // shows as a broken image and is fetched again on the next visit.
+    // shows as a broken image and is fetched again (as soon as it's wanted again).
     #image(page) {
         const cached = this.#images.get(page)
         if (cached) return cached
