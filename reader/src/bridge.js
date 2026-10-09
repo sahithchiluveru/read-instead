@@ -22,5 +22,6 @@ export const resetPhoneKey = () => parseLink(phone()?.resetKey())
 
 // Report the Reader's state; the native side saves the Position, keeps the screen on
 // while a book is open, and will answer Now Reading from it. Either { open: false } or
-// { open: true, bookId, format, mode, position, pageLabel, progress, chapter, left, right }.
+// { open: true, bookId, format, mode, position, pageLabel, progress, chapter, left, right },
+// where mode is 'reading' or 'bar' (Bar focus) and an EPUB adds pagesLeftInChapter.
 export const reportState = state => native()?.onReaderState(JSON.stringify(state))

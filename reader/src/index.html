@@ -33,6 +33,20 @@
     <button id="reset-key">Reset key</button>
 </section>
 <section id="reader" hidden>
+    <header id="top-bar">
+        <div class="progress"><span></span></div>
+        <div class="status"></div>
+        <div class="buttons" hidden>
+            <button data-action="contents">Contents</button>
+            <button data-action="font">Font</button>
+            <button data-action="theme">Theme</button>
+            <button data-action="go-to">Go to %</button>
+            <button data-action="pairing" data-format="pdf">Pairing</button>
+            <button data-action="fit-width" data-format="pdf">Fit-width</button>
+            <button data-action="hide">Hide bar</button>
+            <button data-action="shelf">Shelf</button>
+        </div>
+    </header>
     <div id="stage"></div>
     <output id="hud"></output>
 </section>

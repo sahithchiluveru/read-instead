@@ -3,6 +3,9 @@ import { loadPosition, reportState } from './bridge.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
 import { bookAdded, bookDeleted, initShelf, renderShelf } from './shelf.js'
+import {
+    blurTopBar, focusTopBar, focusedAction, hideTopBar, moveTopBarFocus, resetTopBar, showLocation, toggleTopBar,
+} from './top-bar.js'
 
 const readers = { pdf: PdfReader, epub: EpubReader }
 
@@ -11,8 +14,9 @@ const readerScreen = document.getElementById('reader')
 const stage = document.getElementById('stage')
 const hud = document.getElementById('hud')
 
-// The open book: { book: { id, format, ... }, reader, ready }. Keys only reach the
-// reader once it's ready. Each reader draws into its own element in the stage, so one
+// The open book: { book: { id, format, ... }, reader, ready, mode, location }. Keys only
+// reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread) or 'bar' (Bar
+// focus: ←/→ move between the Top Bar's buttons); location is the Spread on screen. Each reader draws into its own element in the stage, so one
 // abandoned mid-open can't touch the next book's pages.
 let session = null
 // Presses that arrive mid-turn are queued (as a net direction) rather than dropped.
@@ -43,11 +47,50 @@ const runQueuedTurns = async () => {
     }
 }
 
-// Reading mode: ←/→ turn the Spread, OK does nothing.
+const report = () => {
+    const { book, mode, location } = session
+    if (location) reportState({ open: true, bookId: book.id, format: book.format, mode, ...location })
+}
+
+const setMode = mode => {
+    session.mode = mode
+    if (mode === 'bar') focusTopBar()
+    else blurTopBar()
+    report()
+}
+
+// What each Top Bar button does; the rest arrive with later overlays.
+const barActions = {
+    hide() {
+        hideTopBar()
+        setMode('reading')
+    },
+    shelf: () => closeBook(),
+}
+
+// Reading mode: ←/→ turn the Spread, ↓ hides/shows the Top Bar, ↑ enters Bar focus and
+// OK does nothing.
+const readingKeys = {
+    ArrowUp: () => setMode('bar'),
+    ArrowDown: toggleTopBar,
+    Enter() {},
+}
+
+// Bar focus: ←/→ move between buttons, OK activates, ↓ (or Back) returns to Reading mode.
+const barKeys = {
+    ArrowLeft: () => moveTopBarFocus(-1),
+    ArrowRight: () => moveTopBarFocus(1),
+    ArrowUp() {},
+    ArrowDown: () => setMode('reading'),
+    Enter: () => barActions[focusedAction()]?.(),
+}
+
 const onKey = e => {
     if (!session?.ready) return
-    if (e.key === 'Enter') {
+    const action = (session.mode === 'bar' ? barKeys : readingKeys)[e.key]
+    if (action) {
         e.preventDefault()
+        action()
         return
     }
     const direction = arrowDirection(e.key)
@@ -63,15 +106,18 @@ const openBook = async book => {
     readerScreen.hidden = false
     queuedTurns = 0
     hud.textContent = 'Opening…'
-    const opening = { book, ready: false }
-    const report = location => {
+    resetTopBar(book.format)
+    const opening = { book, ready: false, mode: 'reading', location: null }
+    const onLocation = location => {
         if (session !== opening) return
-        reportState({ open: true, bookId: book.id, format: book.format, mode: 'reading', ...location })
+        opening.location = location
+        showLocation(book.format, location)
+        report()
     }
     const pages = document.createElement('div')
     pages.className = 'pages'
     stage.replaceChildren(pages)
-    opening.reader = new readers[book.format](pages, { onKey, onLocation: report })
+    opening.reader = new readers[book.format](pages, { onKey, onLocation })
     session = opening
     try {
         await opening.reader.open(`/books/${encodeURIComponent(book.id)}`, loadPosition(book.id))
@@ -95,6 +141,7 @@ const openBook = async book => {
 
 const closeBook = () => {
     const closed = session?.book.id
+    blurTopBar()
     if (session?.ready) {
         try {
             session.reader.close()
@@ -135,7 +182,8 @@ window.readInstead = {
             return true
         }
         if (readerScreen.hidden) return false
-        closeBook()
+        if (session?.mode === 'bar') setMode('reading')
+        else closeBook()
         return true
     },
 }

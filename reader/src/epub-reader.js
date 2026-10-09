@@ -2,6 +2,9 @@ import '../vendor/foliate-js/view.js'
 import { blockBookScripts } from './epub-scripts.js'
 import { rangeText, splitAtColumn } from './epub-text.js'
 
+// Pages (columns) side by side in a Spread.
+const COLUMNS = 2
+
 // Two-page EPUB reader on top of foliate-js. Each chapter is laid out on its own,
 // so chapters always start in the left column of a fresh Spread. Fixed-layout books
 // show the publisher's spreads instead.
@@ -15,8 +18,8 @@ export class EpubReader {
     #shown = null // the last location reported
     #onShown = null // resolves the turn in progress
 
-    // onLocation receives { position, pageLabel, progress, chapter, left, right } whenever a new
-    // Spread is on screen.
+    // onLocation receives { position, pageLabel, progress, chapter, pagesLeftInChapter, left,
+    // right } whenever a new Spread is on screen.
     constructor(stage, { onKey, onLocation }) {
         this.#stage = stage
         this.#onKey = onKey
@@ -31,7 +34,7 @@ export class EpubReader {
         blockBookScripts(view.book)
         const paginator = view.renderer
         paginator.setAttribute('flow', 'paginated')
-        paginator.setAttribute('max-column-count', '2')
+        paginator.setAttribute('max-column-count', String(COLUMNS))
         paginator.setAttribute('max-inline-size', '432px')
         paginator.setAttribute('gap', '6%')
         paginator.setAttribute('margin', '0px')
@@ -66,8 +69,18 @@ export class EpubReader {
             pageLabel: `${Math.round((fraction ?? 0) * 100)}%`,
             progress: fraction ?? 0,
             chapter: tocItem?.label?.trim() ?? '',
+            pagesLeftInChapter: this.#pagesLeftInChapter(),
             ...this.#visibleText(range),
         }
+    }
+
+    // Pages after this Spread before the next chapter, or null in a fixed-layout book,
+    // which has no reflowed pages. Each chapter is laid out on its own, so this counts the
+    // Spreads left in it (between the paginator's blank padding pages) a full Spread each.
+    #pagesLeftInChapter() {
+        if (this.#view.isFixedLayout) return null
+        const { page, pages } = this.#view.renderer
+        return (pages - 2 - page) * COLUMNS
     }
 
     #visibleText(range) {

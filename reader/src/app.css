@@ -212,11 +212,92 @@ html, body {
     width: 100%;
     height: 100%;
 }
+/* "Opening…" or why a book couldn't open, in the middle of the page area. */
 #hud {
     position: absolute;
-    top: 14px;
-    right: 48px;
+    inset: 44px 48px 27px;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
     color: var(--dim);
-    font: 13px/1 system-ui, sans-serif;
+    font: 16px system-ui, sans-serif;
+}
+#hud:empty {
+    display: none;
+}
+/* The Top Bar lives in the 44 dp top band, which the pages never use, so fading it
+   (↓ or Hide bar) changes no layout. Progress line: 3 dp of accent on a 15% text track.
+   Status line: 13 sp dim text, baseline at about 36 dp, tabular figures. */
+#top-bar {
+    position: absolute;
+    top: 0;
+    left: 48px;
+    right: 48px;
+    height: 44px;
+    z-index: 1;
+    font-family: system-ui, sans-serif;
+    transition: opacity 200ms;
+}
+#top-bar.faded {
+    opacity: 0;
+}
+#top-bar .progress {
+    position: absolute;
+    top: 14px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: color-mix(in srgb, var(--text) 15%, transparent);
+}
+#top-bar .progress span {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--accent);
+    transition: width 150ms;
+}
+#top-bar .status {
+    position: absolute;
+    top: 25px;
+    left: 0;
+    right: 0;
+    color: var(--dim);
+    font-size: 13px;
+    line-height: 14px;
     font-variant-numeric: tabular-nums;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Bar focus: 32 dp pills, 12 dp apart, drawn over the top of the pages. */
+#top-bar .buttons {
+    position: absolute;
+    top: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: var(--bg);
+    box-shadow: 0 2px 12px color-mix(in srgb, var(--text) 25%, transparent);
+}
+#top-bar button {
+    height: 32px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--dim);
+    font: 14px/20px system-ui, sans-serif;
+    white-space: nowrap;
+    transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
+}
+#top-bar button:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    background: var(--text);
+    color: var(--bg);
+    transform: scale(1.05);
 }
