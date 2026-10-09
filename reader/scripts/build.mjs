@@ -1,11 +1,12 @@
-// Assembles reader/dist, which the Android app bundles as assets/reader.
+// Assembles reader/dist (or the directory given as the first argument), which the
+// Android app bundles as assets/reader.
 // Layout: src/ (our code), vendor/ (foliate-js, pdf.js), books/ (bundled sample books).
 import { cp, rm, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const dist = join(root, 'dist')
+const dist = process.argv[2] ? resolve(process.argv[2]) : join(root, 'dist')
 const modules = join(root, 'node_modules')
 
 // foliate-js formats we don't support, its demo UI and its own pdf.js copy stay out.

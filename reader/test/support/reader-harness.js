@@ -2,14 +2,14 @@
 // the same key commands the remote sends, and observes what the Reader reports across
 // the Reader session bridge.
 import { execFileSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
-const dist = join(root, 'dist')
 const types = {
     '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
     '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm',
@@ -21,7 +21,9 @@ const viewport = { width: 960, height: 540 }
 
 // books: { 'name.epub': Buffer } served at /test-books/name.epub.
 export const startReader = async books => {
-    execFileSync(process.execPath, [join(root, 'scripts/build.mjs')])
+    // Each test file builds its own copy, so parallel test files don't race on dist/.
+    const dist = await mkdtemp(join(tmpdir(), 'read-instead-reader-'))
+    execFileSync(process.execPath, [join(root, 'scripts/build.mjs'), dist])
     const server = createServer(async (req, res) => {
         const path = decodeURIComponent(new URL(req.url, 'http://x').pathname)
         const book = path.startsWith('/test-books/') && books[path.slice('/test-books/'.length)]
@@ -58,6 +60,7 @@ export const startReader = async books => {
         close: async () => {
             await browser.close()
             await new Promise(resolve => server.close(resolve))
+            await rm(dist, { recursive: true, force: true })
         },
     }
 }

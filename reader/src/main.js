@@ -60,10 +60,9 @@ const openBook = async book => {
     readerScreen.hidden = false
     queuedTurns = 0
     hud.textContent = 'Opening…'
-    const opening = { book, ready: false, located: false }
+    const opening = { book, ready: false }
     const report = location => {
         if (session !== opening) return
-        opening.located ||= Boolean(location)
         reportState({ open: true, bookId: book.id, format: book.format, mode: 'reading', ...location })
     }
     const pages = document.createElement('div')
@@ -80,7 +79,6 @@ const openBook = async book => {
         }
         opening.ready = true
         hud.textContent = ''
-        if (!opening.located) report() // readers that don't report a location yet
     } catch (error) {
         try {
             opening.reader.close()
