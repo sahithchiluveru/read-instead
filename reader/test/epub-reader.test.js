@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, test } from 'node:test'
-import { chaptersEpub, fixedLayoutEpub } from './support/epub-fixtures.js'
+import { chaptersEpub, dropCapEpub, fixedLayoutEpub } from './support/epub-fixtures.js'
 import { startReader } from './support/reader-harness.js'
 
 const chapters = { id: 'chapters', format: 'epub' }
@@ -11,6 +11,7 @@ before(async () => {
     reader = await startReader({
         chapters: chaptersEpub(),
         'fixed-layout': fixedLayoutEpub(),
+        'drop-cap': dropCapEpub(),
     })
 })
 after(() => reader.close())
@@ -101,6 +102,13 @@ describe('reading an EPUB', () => {
         assert.deepEqual(words(pages.join(' ')), words(chapterText))
         // One line per paragraph: a page never runs two paragraphs together.
         for (const page of pages) assert.doesNotMatch(page, /\.Two-/)
+        await app.close()
+    })
+
+    test('a drop cap stays part of its word in the text', async () => {
+        const app = await reader.launch()
+        const state = await app.open({ id: 'drop-cap', format: 'epub' })
+        assert.match(state.left, /^Chapter One\nIT is a truth universally acknowledged\.\nAfter /)
         await app.close()
     })
 

@@ -174,3 +174,19 @@ export const picturesEpub = () => epub({
     'diagram.svg': svg(200, 100),
     'plate.svg': svg(600, 400),
 })
+
+// A chapter opening on a drop cap, the way illustrated editions set one: a floated letter
+// that begins the paragraph's first word.
+export const dropCapEpub = () => epub({
+    'content.opf': opf({
+        title: 'Drop Cap Fixture',
+        manifest: '<item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>',
+        spine: '<itemref idref="ch1"/>',
+    }),
+    'nav.xhtml': nav([['ch1.xhtml', 'Chapter One']]),
+    'ch1.xhtml': xhtml('Chapter One', [
+        '<h1>Chapter One</h1>',
+        '<p><span style="float: left; font-size: 3em; line-height: 1">I</span>T is a truth universally acknowledged.</p>',
+        paragraph('After'),
+    ].join('\n')),
+})

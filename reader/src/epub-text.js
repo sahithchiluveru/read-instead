@@ -22,7 +22,12 @@ const textSegments = range => {
 
 const blockOf = node => {
     let el = node.parentElement
-    const isInline = el => el.ownerDocument.defaultView.getComputedStyle(el).display.startsWith('inline')
+    // A floated letter or two is a drop cap, the start of its paragraph's first word, though
+    // floating makes it a block.
+    const isInline = el => {
+        const style = el.ownerDocument.defaultView.getComputedStyle(el)
+        return style.display.startsWith('inline') || style.float !== 'none' && el.textContent.trim().length <= 2
+    }
     while (el?.parentElement && isInline(el)) el = el.parentElement
     return el
 }
