@@ -4,6 +4,7 @@ import {
 } from './bridge.js'
 import { closeContents, focusedContentsEntry, moveContentsFocus, openContents } from './contents.js'
 import { closeGoTo, goToTarget, leapGoTo, nudgeGoTo, openGoTo } from './go-to.js'
+import { closeImageViewer, openImageViewer } from './image-viewer.js'
 import { changeLook, currentLook, loadLook } from './look.js'
 import { closeLookPanel, moveLookRow, openLookPanel, stepLookChoice } from './look-panel.js'
 import { PdfReader } from './pdf-reader.js'
@@ -29,7 +30,8 @@ const readingSpeed = new ReadingSpeed(savedReadingSpeed(), { onChange: saveReadi
 // pendingTurn }.
 // Keys only reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread),
 // 'bar' (Bar focus: ←/→ move between the Top Bar's buttons), or an overlay opened from
-// it: 'contents', 'go-to', 'font' or 'theme'. location is the Spread on screen, and
+// it: 'contents', 'go-to', 'font' or 'theme', or 'image' (the image viewer, opened by OK
+// in Reading mode). location is the Spread on screen, and
 // returnTo the one before the last jump, which the Return chip goes back to. pendingTurn is
 // the direction of a turn whose new Spread hasn't been reported yet (0 for none), so the
 // reading speed can tell a → turn from a jump.
@@ -163,12 +165,20 @@ const barActions = {
 }
 
 // Reading mode: ←/→ turn the Spread, ↓ hides/shows the Top Bar, ↑ enters Bar focus and
-// OK does nothing.
+// OK opens the Spread's first image full screen (and does nothing on a Spread without one).
 const readingKeys = {
     ArrowUp: () => setMode('bar'),
     ArrowDown: toggleTopBar,
-    Enter() {},
+    Enter() {
+        const src = session.reader.spreadImage()
+        if (!src) return
+        openImageViewer(src)
+        setMode('image')
+    },
 }
+
+// The image viewer: only Back (which closes it) does anything.
+const imageKeys = { ArrowLeft() {}, ArrowRight() {}, ArrowUp() {}, ArrowDown() {}, Enter() {} }
 
 // Bar focus: ←/→ move between buttons, OK activates, ↓ (or Back) returns to Reading mode.
 const barKeys = {
@@ -229,6 +239,7 @@ const lookKeys = {
 
 const keysByMode = {
     reading: readingKeys, bar: barKeys, contents: contentsKeys, 'go-to': goToKeys, font: lookKeys, theme: lookKeys,
+    image: imageKeys,
 }
 
 // Back from Font or Theme: Bar focus on its button.
@@ -237,7 +248,8 @@ const leaveLook = button => {
     setMode('bar', button)
 }
 
-// Back leaves an overlay for Bar focus on its button, and Bar focus for Reading mode.
+// Back leaves an overlay for Bar focus on its button, and Bar focus or the image viewer
+// for Reading mode.
 const backByMode = {
     bar: () => setMode('reading'),
     contents() {
@@ -250,6 +262,10 @@ const backByMode = {
     },
     font: () => leaveLook('font'),
     theme: () => leaveLook('theme'),
+    image() {
+        closeImageViewer()
+        setMode('reading')
+    },
 }
 
 const onKey = e => {
@@ -327,6 +343,7 @@ const closeBook = () => {
     closeContents()
     closeGoTo()
     closeLookPanel()
+    closeImageViewer()
     if (session?.ready) {
         try {
             session.reader.close()

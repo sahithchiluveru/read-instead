@@ -218,6 +218,26 @@ export class EpubReader {
         return this.#turn(() => this.#view.prev())
     }
 
+    // The address of the first image on the Spread (in reading order), or null if it has
+    // none. Book images are <img>s, or SVG <image>s as on cover pages. The address stays
+    // good while the Spread's chapter is loaded.
+    spreadImage() {
+        const renderer = this.#view.renderer
+        // A fixed-layout Spread is its pages' whole documents. A reflowable chapter is laid
+        // out as columns from x = 0, after the paginator's blank page (see #visibleText).
+        const spreadStart = renderer.start - renderer.size
+        const onSpread = this.#view.isFixedLayout ? () => true
+            : ({ left, right }) => left < spreadStart + renderer.size && right > spreadStart
+        for (const { doc } of renderer.getContents()) {
+            for (const image of doc?.querySelectorAll('img, image') ?? []) {
+                const rect = image.getBoundingClientRect()
+                const src = image.currentSrc || image.href?.baseVal
+                if (src && rect.width > 0 && rect.height > 0 && onSpread(rect)) return src
+            }
+        }
+        return null
+    }
+
     // Lay the book out in a new look (font, size, theme, layout), keeping the start of the
     // Spread on screen, which foliate anchors to. Resolves once the new Spread is reported,
     // even if it starts where the old one did, since its text and pages left have changed.

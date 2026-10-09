@@ -141,3 +141,32 @@ export const numberedWordsEpub = (paragraphCount = 50) => {
         'ch1.xhtml': xhtml('The Only Chapter', `<h1>The Only Chapter</h1>\n${paragraphs.join('\n')}`),
     })
 }
+
+// Images to open full screen, each SVG a different size so the viewer shows which it is:
+// - "Chapter One" has no images.
+// - "Maps" opens with a map (400×300) then a diagram (200×100), followed by Spreads of prose.
+// - "Plates" holds a plate (600×400) the way cover pages do, as an SVG <image>.
+export const picturesEpub = () => epub({
+    'content.opf': opf({
+        title: 'Pictures Fixture',
+        manifest: `
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ch2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ch3" href="ch3.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="map" href="map.svg" media-type="image/svg+xml"/>
+    <item id="diagram" href="diagram.svg" media-type="image/svg+xml"/>
+    <item id="plate" href="plate.svg" media-type="image/svg+xml"/>`,
+        spine: '<itemref idref="ch1"/><itemref idref="ch2"/><itemref idref="ch3"/>',
+    }),
+    'nav.xhtml': nav([['ch1.xhtml', 'Chapter One'], ['ch2.xhtml', 'Maps'], ['ch3.xhtml', 'Plates']]),
+    'ch1.xhtml': xhtml('Chapter One', `<h1>Chapter One</h1>\n${paragraph('One-1')}`),
+    'ch2.xhtml': xhtml('Maps', ['<h1>Maps</h1>', '<p><img src="map.svg" alt="map"/></p>',
+        '<p><img src="diagram.svg" alt="diagram"/></p>',
+        ...Array.from({ length: 16 }, (_, i) => paragraph(`Maps-${i + 1}`))].join('\n')),
+    'ch3.xhtml': xhtml('Plates', '<h1>Plates</h1>\n<svg xmlns="http://www.w3.org/2000/svg" ' +
+        'xmlns:xlink="http://www.w3.org/1999/xlink" width="300" height="200" viewBox="0 0 600 400">' +
+        `<image xlink:href="plate.svg" width="600" height="400"/></svg>\n${paragraph('Plates-1')}`),
+    'map.svg': svg(400, 300),
+    'diagram.svg': svg(200, 100),
+    'plate.svg': svg(600, 400),
+})

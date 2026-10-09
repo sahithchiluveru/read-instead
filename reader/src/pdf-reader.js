@@ -127,6 +127,11 @@ export class PdfReader {
         return this.#jump(this.#spreadAt(fraction))
     }
 
+    // A PDF page is shown whole, and Fit-width enlarges it, so there's no image to open.
+    spreadImage() {
+        return null
+    }
+
     async #jump(spread, offset = 0) {
         if (spread === this.#spread && offset === this.#offset) return false
         return this.#goTo(spread, offset)
