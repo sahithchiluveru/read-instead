@@ -48,6 +48,6 @@ export const savePdfSetting = (bookId, name, value) => settings()?.savePdf(bookI
 // while a book is open, and will answer Now Reading from it. Either { open: false } or
 // { open: true, bookId, format, mode, position, pageLabel, progress, chapter,
 // charactersLeftInChapter, minutesLeftInChapter, left, right }, where mode is 'reading', 'bar'
-// (Bar focus), 'contents', 'go-to', 'font' or 'theme' (the overlays), and an EPUB adds
+// (Bar focus), 'contents', 'go-to', 'font', 'theme' or 'image-viewer' (the overlays), and an EPUB adds
 // pagesLeftInChapter. The time left is null until the reading speed is known.
 export const reportState = state => native()?.onReaderState(JSON.stringify(state))

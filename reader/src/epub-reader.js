@@ -146,6 +146,14 @@ export class EpubReader {
         return Math.max(0, chapterPages - renderer.page * this.#columns)
     }
 
+    // Where a reflowable Spread starts, in its chapter document's coordinates. Each chapter
+    // is laid out as columns from x = 0, and the paginator keeps a blank page before it,
+    // so the Spread (one paginator page) starts a page before the paginator's scroll.
+    get #spreadStart() {
+        const renderer = this.#view.renderer
+        return renderer.start - renderer.size
+    }
+
     // The left and right page's text; visible is the Spread's range in a reflowable book.
     #visibleText(visible) {
         const renderer = this.#view.renderer
@@ -158,10 +166,8 @@ export class EpubReader {
         }
         if (this.#columns === 1) return { left: rangeText(visible), right: '' }
         // The Spread is one paginator page holding both columns, so the right column starts
-        // halfway across it. The paginator keeps a blank page before the chapter, hence
-        // `start - size` for the Spread's left edge in chapter-document coordinates.
-        const spreadStart = renderer.start - renderer.size
-        return splitAtColumn(visible, spreadStart + renderer.size / 2)
+        // halfway across it.
+        return splitAtColumn(visible, this.#spreadStart + renderer.size / 2)
     }
 
     // Resolve to whether the Spread changed, as soon as the new Spread is laid out.
@@ -223,11 +229,10 @@ export class EpubReader {
     // good while the Spread's chapter is loaded.
     spreadImage() {
         const renderer = this.#view.renderer
-        // A fixed-layout Spread is its pages' whole documents. A reflowable chapter is laid
-        // out as columns from x = 0, after the paginator's blank page (see #visibleText).
-        const spreadStart = renderer.start - renderer.size
+        // A fixed-layout Spread is its pages' whole documents.
+        const start = this.#spreadStart
         const onSpread = this.#view.isFixedLayout ? () => true
-            : ({ left, right }) => left < spreadStart + renderer.size && right > spreadStart
+            : ({ left, right }) => left < start + renderer.size && right > start
         for (const { doc } of renderer.getContents()) {
             for (const image of doc?.querySelectorAll('img, image') ?? []) {
                 const rect = image.getBoundingClientRect()

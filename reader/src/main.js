@@ -30,8 +30,8 @@ const readingSpeed = new ReadingSpeed(savedReadingSpeed(), { onChange: saveReadi
 // pendingTurn }.
 // Keys only reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread),
 // 'bar' (Bar focus: ←/→ move between the Top Bar's buttons), or an overlay opened from
-// it: 'contents', 'go-to', 'font' or 'theme', or 'image' (the image viewer, opened by OK
-// in Reading mode). location is the Spread on screen, and
+// it: 'contents', 'go-to', 'font' or 'theme', or 'image-viewer' (opened by OK in Reading
+// mode). location is the Spread on screen, and
 // returnTo the one before the last jump, which the Return chip goes back to. pendingTurn is
 // the direction of a turn whose new Spread hasn't been reported yet (0 for none), so the
 // reading speed can tell a → turn from a jump.
@@ -165,15 +165,17 @@ const barActions = {
 }
 
 // Reading mode: ←/→ turn the Spread, ↓ hides/shows the Top Bar, ↑ enters Bar focus and
-// OK opens the Spread's first image full screen (and does nothing on a Spread without one).
+// OK opens the Spread's first image full screen (and does nothing on a Spread without one,
+// or while the Spread is turning, so no image opens over a Spread that's leaving).
 const readingKeys = {
     ArrowUp: () => setMode('bar'),
     ArrowDown: toggleTopBar,
     Enter() {
+        if (turning) return
         const src = session.reader.spreadImage()
         if (!src) return
         openImageViewer(src)
-        setMode('image')
+        setMode('image-viewer')
     },
 }
 
@@ -239,7 +241,7 @@ const lookKeys = {
 
 const keysByMode = {
     reading: readingKeys, bar: barKeys, contents: contentsKeys, 'go-to': goToKeys, font: lookKeys, theme: lookKeys,
-    image: imageKeys,
+    'image-viewer': imageKeys,
 }
 
 // Back from Font or Theme: Bar focus on its button.
@@ -262,7 +264,7 @@ const backByMode = {
     },
     font: () => leaveLook('font'),
     theme: () => leaveLook('theme'),
-    image() {
+    'image-viewer'() {
         closeImageViewer()
         setMode('reading')
     },

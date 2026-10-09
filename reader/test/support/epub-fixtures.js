@@ -86,10 +86,12 @@ export const chaptersEpub = () => {
     })
 }
 
-// Five pre-paginated pages: the cover stands alone on the right, then 2–3 and 4–5 face each other.
+// Five pre-paginated pages: the cover stands alone on the right, then 2–3 and 4–5 face each
+// other. Page 3 has a picture (500×700).
 export const fixedLayoutEpub = () => {
     const pages = [1, 2, 3, 4, 5]
-    const page = n => xhtml(`Page ${n}`, `<p style="font-size:60px">Page ${n}</p>`,
+    const picture = n => n === 3 ? '<img src="picture.svg" alt="picture" style="width:500px"/>' : ''
+    const page = n => xhtml(`Page ${n}`, `<p style="font-size:60px">Page ${n}</p>${picture(n)}`,
         '<meta name="viewport" content="width=600, height=800"/>')
     return epub({
         'content.opf': opf({
@@ -97,11 +99,13 @@ export const fixedLayoutEpub = () => {
             metadata: `<meta property="rendition:layout">pre-paginated</meta>
     <meta property="rendition:spread">landscape</meta>`,
             manifest: pages.map(n =>
-                `<item id="p${n}" href="p${n}.xhtml" media-type="application/xhtml+xml"/>`).join('\n'),
+                `<item id="p${n}" href="p${n}.xhtml" media-type="application/xhtml+xml"/>`).join('\n') +
+                '\n<item id="picture" href="picture.svg" media-type="image/svg+xml"/>',
             spine: pages.map(n => `<itemref idref="p${n}"/>`).join(''),
         }),
         'nav.xhtml': nav(pages.map(n => [`p${n}.xhtml`, `Page ${n}`])),
         ...Object.fromEntries(pages.map(n => [`p${n}.xhtml`, page(n)])),
+        'picture.svg': svg(500, 700),
     })
 }
 

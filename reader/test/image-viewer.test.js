@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, test } from 'node:test'
-import { picturesEpub } from './support/epub-fixtures.js'
+import { fixedLayoutEpub, picturesEpub } from './support/epub-fixtures.js'
 import { bookPdf } from './support/pdf-fixtures.js'
 import { startReader } from './support/reader-harness.js'
 
 const pictures = { id: 'pictures', format: 'epub' }
+const fixedLayout = { id: 'fixed-layout', format: 'epub' }
 const pdfBook = { id: 'book', format: 'pdf' }
 
 let reader
 before(async () => {
-    reader = await startReader({ pictures: picturesEpub(), book: bookPdf() })
+    reader = await startReader({ pictures: picturesEpub(), 'fixed-layout': fixedLayoutEpub(), book: bookPdf() })
 })
 after(() => reader.close())
 
@@ -51,7 +52,7 @@ describe('Image viewer', () => {
         const app = await reader.launch()
         const reading = await openAt(app, 'Maps')
         const state = await app.press('Enter')
-        assert.equal(state.mode, 'image')
+        assert.equal(state.mode, 'image-viewer')
         assert.equal(state.position, reading.position)
         const shown = await viewer(app)
         assert.deepEqual(shown.natural, [400, 300], 'the map, the first of the two images')
@@ -72,7 +73,7 @@ describe('Image viewer', () => {
         // Reading mode again: → turns the Spread, and OK opens the image again.
         assert.notEqual((await app.press('ArrowRight')).position, reading.position)
         await app.press('ArrowLeft')
-        assert.equal((await app.press('Enter')).mode, 'image')
+        assert.equal((await app.press('Enter')).mode, 'image-viewer')
         await app.close()
     })
 
@@ -110,10 +111,40 @@ describe('Image viewer', () => {
     test('an image drawn in SVG, as on cover pages, opens too', async () => {
         const app = await reader.launch()
         await openAt(app, 'Plates')
-        assert.equal((await app.press('Enter')).mode, 'image')
+        assert.equal((await app.press('Enter')).mode, 'image-viewer')
         const shown = await viewer(app)
         assert.deepEqual(shown.natural, [600, 400])
         assert.deepEqual(shown.shown, [810, 540])
+        await app.close()
+    })
+
+    test('a fixed-layout page with a picture opens it', async () => {
+        const app = await reader.launch()
+        await app.open(fixedLayout)
+        await pressQuietly(app, 'Enter') // the cover, alone
+        assert.equal((await app.state()).mode, 'reading')
+        const spread = await app.press('ArrowRight') // pages 2–3
+        assert.equal((await app.press('Enter')).mode, 'image-viewer')
+        assert.deepEqual((await viewer(app)).natural, [500, 700])
+        assert.equal(await app.back(), true)
+        assert.equal((await app.state()).position, spread.position)
+        await app.close()
+    })
+
+    test('OK pressed while the Spread is turning does nothing', async () => {
+        const app = await reader.launch()
+        const maps = await openAt(app, 'Maps')
+        // → away from the Spread with the images, and OK at once, before the next is shown:
+        // no image opens over a Spread that's leaving.
+        await app.page.keyboard.press('ArrowRight')
+        await app.page.keyboard.press('Enter')
+        await app.page.waitForFunction(position => window.reportedStates.at(-1).position !== position,
+            maps.position)
+        await app.page.waitForTimeout(150)
+        const state = await app.state()
+        assert.notEqual(state.position, maps.position)
+        assert.equal(state.mode, 'reading')
+        assert.equal(await viewer(app), null)
         await app.close()
     })
 
