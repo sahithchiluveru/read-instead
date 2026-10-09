@@ -22,8 +22,8 @@ const hud = document.getElementById('hud')
 // The open book: { book: { id, format, ... }, reader, ready, mode, location, returnTo }.
 // Keys only reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread),
 // 'bar' (Bar focus: ←/→ move between the Top Bar's buttons), or an overlay opened from
-// it: 'contents', 'go-to', 'font' or 'theme'. location is the Spread on screen, and returnTo the one
-// before the last jump, which the Return chip goes back to.
+// it: 'contents', 'go-to', 'font' or 'theme'. location is the Spread on screen, and
+// returnTo the one before the last jump, which the Return chip goes back to.
 // Each reader draws into its own element in the stage, so one abandoned mid-open can't
 // touch the next book's pages.
 let session = null
@@ -202,8 +202,7 @@ const keysByMode = {
 }
 
 // Back from Font or Theme: Bar focus on its button.
-const leaveLook = () => {
-    const button = session.mode
+const leaveLook = button => {
     closeLookPanel()
     setMode('bar', button)
 }
@@ -219,8 +218,8 @@ const backByMode = {
         closeGoTo()
         setMode('bar', 'go-to')
     },
-    font: leaveLook,
-    theme: leaveLook,
+    font: () => leaveLook('font'),
+    theme: () => leaveLook('theme'),
 }
 
 const onKey = e => {

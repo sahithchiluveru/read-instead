@@ -13,6 +13,9 @@ export const choices = {
     theme: ['sepia', 'dark', 'light'],
     layout: ['spread', 'single-page'],
 }
+// Whether the look shows one page at a time rather than a Spread.
+export const isSinglePage = look => look.layout === 'single-page'
+
 const defaults = { font: 'literata', size: '20', theme: 'sepia', layout: 'spread' }
 
 let look = defaults

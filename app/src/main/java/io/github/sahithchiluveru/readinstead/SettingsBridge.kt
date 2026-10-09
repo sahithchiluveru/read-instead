@@ -9,6 +9,7 @@ class SettingsBridge(private val settings: ReaderSettings) {
     @JavascriptInterface
     fun load(): String = settings.toJson()
 
+    /** Saves a setting; a name that isn't one of the reader's is ignored. */
     @JavascriptInterface
     fun save(name: String, value: String) {
         settings.save(name, value)

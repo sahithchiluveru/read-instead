@@ -47,6 +47,9 @@ html, body {
 body {
     font-size: 1rem !important;
     font-optical-sizing: auto;
+    line-height: 1.5;
+    text-align: justify;
+    hyphens: auto;
 }
 body, body *${notCode} {
     font-family: ${families[font]} !important;
@@ -59,6 +62,8 @@ body * {
 body a:link, body a:visited, body a:link *, body a:visited * {
     color: ${themeColor('--accent')} !important;
 }
+/* Text set straight in the body or in divs inherits the body's setting; paragraphs get it
+   over the book's own. */
 p, li, blockquote, dd {
     line-height: 1.5 !important;
     text-align: justify !important;

@@ -1,7 +1,16 @@
 import '../vendor/foliate-js/view.js'
 import { bookStyles } from './epub-look.js'
+import { isSinglePage } from './look.js'
 import { blockBookScripts } from './epub-scripts.js'
 import { rangeText, splitAtColumn, wholeWords } from './epub-text.js'
+
+// The layout grid (docs/research/tv-reader-visual-design.md): two 408 dp columns with a
+// 48 dp gutter between the 48 dp side margins. The book's view spans the whole 960 dp
+// width (app.css), and foliate puts its gap (5% of that: 48 dp) at either edge and
+// between columns, so a Spread's columns come out at 408. One centred column is held
+// to 408 by its maximum size, which foliate shares with a gap 5/95 of it.
+const GAP = '5%'
+const maxInlineSize = columns => columns === 1 ? '431px' : '480px'
 
 const nextFrame = () => new Promise(resolve =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -35,7 +44,7 @@ export class EpubReader {
 
     // Pages (columns) side by side in a Spread.
     get #columns() {
-        return this.#look.layout === 'single-page' ? 1 : 2
+        return isSinglePage(this.#look) ? 1 : 2
     }
 
     async open(url, position) {
@@ -47,13 +56,18 @@ export class EpubReader {
         const paginator = view.renderer
         paginator.setAttribute('flow', 'paginated')
         paginator.setAttribute('max-column-count', String(this.#columns))
-        paginator.setAttribute('max-inline-size', '432px')
-        paginator.setAttribute('gap', '6%')
+        paginator.setAttribute('max-inline-size', maxInlineSize(this.#columns))
+        paginator.setAttribute('gap', GAP)
         paginator.setAttribute('margin', '0px')
         if (!view.isFixedLayout) paginator.setStyles(bookStyles(this.#look))
         // Book pages live in iframes; forward their keys so the remote keeps working.
-        view.addEventListener('load', ({ detail: { doc } }) =>
-            doc.addEventListener('keydown', this.#onKey))
+        // Hyphenation needs to know the language, which not every chapter declares.
+        const language = [view.book.metadata?.language].flat()[0] || 'en'
+        view.addEventListener('load', ({ detail: { doc } }) => {
+            doc.addEventListener('keydown', this.#onKey)
+            if (!doc.documentElement.lang && !doc.documentElement.getAttribute('xml:lang'))
+                doc.documentElement.lang = language
+        })
         view.addEventListener('relocate', ({ detail }) => this.#onRelocate(detail))
         await view.init({ lastLocation: position, showTextStart: true })
     }
@@ -218,6 +232,7 @@ export class EpubReader {
         this.#relayingOut = true
         try {
             renderer.setAttribute('max-column-count', String(this.#columns))
+            renderer.setAttribute('max-inline-size', maxInlineSize(this.#columns))
             renderer.setStyles(bookStyles(look))
             await nextFrame() // laid out, so the fonts it needs are loading
             await renderer.getContents()[0]?.doc?.fonts.ready

@@ -1,4 +1,5 @@
 import * as pdfjs from '../vendor/pdfjs/build/pdf.min.mjs'
+import { isSinglePage } from './look.js'
 import { LruCache } from './lru.js'
 import { choosePairing, columnsOf, pagesOf, pairPages, spreadIndexOf } from './pdf-spreads.js'
 
@@ -24,7 +25,7 @@ export class PdfReader {
     #doc
     #closed = false
     #pairing // how the document's pages pair up
-    #layout // the reader's page layout setting: 'spread' or 'single-page'
+    #look // the reader's look; only its layout matters here
     #spreads = []
     #spread = 0 // index into #spreads
     #chapters // Promise of the outline, in order: [{ title, page, depth }]
@@ -37,12 +38,12 @@ export class PdfReader {
     constructor(container, { onLocation, look }) {
         this.#container = container
         this.#onLocation = onLocation
-        this.#layout = look.layout
+        this.#look = look
     }
 
     // How pages pair up on screen: the document's pairing, or one at a time.
     get #shownPairing() {
-        return this.#layout === 'single-page' ? 'single' : this.#pairing
+        return isSinglePage(this.#look) ? 'single' : this.#pairing
     }
 
     async open(url, position) {
@@ -119,10 +120,11 @@ export class PdfReader {
 
     // A new look: a change of layout re-pairs the pages and redraws them at their new size,
     // keeping the first page on screen. Resolves once the new Spread is shown.
-    async setLook({ layout }) {
-        if (layout === this.#layout) return
+    async setLook(look) {
+        const relaid = isSinglePage(look) !== isSinglePage(this.#look)
+        this.#look = look
+        if (!relaid) return
         const page = this.#firstPage(this.#spread)
-        this.#layout = layout
         this.#spreads = pairPages(this.#shownPairing, this.#doc.numPages)
         const oldCache = this.#cache
         this.#cache = newCache() // the pages on screen stay until their replacements are drawn

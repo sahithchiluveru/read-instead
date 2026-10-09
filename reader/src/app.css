@@ -224,8 +224,11 @@ html, body {
     align-items: center;
     column-gap: 48px;
 }
+/* An EPUB's view reaches into the side margins, which foliate leaves blank as its
+   outer gaps (see epub-reader.js). */
 #stage .pages foliate-view {
-    width: 100%;
+    flex: none;
+    width: 960px;
     height: 100%;
 }
 /* PDF pages follow the theme: on Sepia the white paper multiplies into the background

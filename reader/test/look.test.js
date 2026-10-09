@@ -247,6 +247,20 @@ describe('Font', () => {
     })
 })
 
+describe('the layout grid', () => {
+    test('a Spread is two 408 dp columns with a 48 dp gutter, inside the 48 dp side margins', async () => {
+        const app = await reader.launch()
+        await app.open(numbered)
+        const spread = await app.press('ArrowRight')
+        const left = await pageExtent(app, `w${words(spread)[0]}`)
+        const right = await pageExtent(app, `w${words({ left: spread.right, right: '' })[0]}`)
+        const near = (box, from, to) => Math.abs(box.left - from) < 2 && Math.abs(box.right - to) < 2
+        assert.ok(near(left, 48, 456), `left column: ${JSON.stringify(left)}`)
+        assert.ok(near(right, 504, 912), `right column: ${JSON.stringify(right)}`)
+        await app.close()
+    })
+})
+
 describe('single-page layout', () => {
     test('an EPUB shows one centred column, turned a page at a time, and the setting is saved', async () => {
         const app = await reader.launch()
@@ -260,8 +274,8 @@ describe('single-page layout', () => {
         assert.equal(single.right, '')
         assert.ok(words(single).includes(words(spread)[0]), 'the reader stays where they were')
         const box = await pageExtent(app, `w${words(single)[0]}`)
-        assert.ok(Math.abs((box.left + box.right) / 2 - 480) < 4, `centred: ${JSON.stringify(box)}`)
-        assert.ok(box.right - box.left <= 432, JSON.stringify(box))
+        assert.ok(Math.abs(box.left - 276) < 2 && Math.abs(box.right - 684) < 2,
+            `one 408 dp column, centred: ${JSON.stringify(box)}`)
         assert.deepEqual(await app.page.evaluate(() => window.savedSettings), { layout: 'single-page' })
 
         assert.equal(await app.back(), true)
