@@ -2,6 +2,19 @@
 
 A two-page e-reader for a Google TV (built for a Sony Bravia 3), so the TV gets used for reading instead of movies. Books are uploaded from a phone over the home Wi-Fi; everything stays local. See the spec in [issue #1](https://github.com/sahithchiluveru/read-instead/issues/1).
 
+![The Shelf](docs/screenshots/shelf.png)
+
+| | |
+|---|---|
+| ![Two pages of Pride and Prejudice](docs/screenshots/reading.png) | ![The Dark theme](docs/screenshots/dark.png) |
+| Two pages at a time; ←/→ on the remote turn them. | Sepia, Dark and Light themes, and two bundled fonts. |
+| ![Contents](docs/screenshots/contents.png) | ![A comic Spread](docs/screenshots/comic.jpg) |
+| Contents and Go to % from the Top Bar. | Comics and manga (CBZ), with right to left. |
+| ![Fit-width](docs/screenshots/comic-fit-width.jpg) | <img src="docs/screenshots/phone.png" alt="Now Reading on the phone" width="220"> |
+| Fit-width, for lettering too small to read from the couch. | Now Reading on the phone: copy what's on the TV into ChatGPT or anywhere else. |
+
+Screenshots are the reader at the TV's 1920×1080. Books: *Pride and Prejudice* and *Alice's Adventures in Wonderland* from [Project Gutenberg](https://www.gutenberg.org/) (public domain); comic: [Pepper&Carrot](https://www.peppercarrot.com/) by David Revoy (CC BY 4.0).
+
 ## Layout
 
 - `app/`: Android TV shell (Kotlin). A single fullscreen WebView that loads the web reader from the APK's assets.
@@ -127,10 +140,14 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n io.github.sahithchiluveru.readinstead/.MainActivity
 ```
 
-The pairing is remembered. The connect port can change after the TV restarts, so check it in the Wireless debugging screen (or run `adb mdns services`). Use the SDK's `platform-tools/adb`: very old adb versions (1.0.32) can't pair.
+A debug build can't be installed over a release (they're signed with different keys): uninstall the release first, which deletes its books, or build a signed release locally. The pairing is remembered. The connect port can change after the TV restarts, so check it in the Wireless debugging screen (or run `adb mdns services`). Use the SDK's `platform-tools/adb`: very old adb versions (1.0.32) can't pair.
 
 Reader console output goes to logcat under the `ReadInstead` tag. Page-turn timings are logged as `[turn] ...`:
 
 ```sh
 adb logcat -s ReadInstead:*
 ```
+
+## License
+
+[MIT](LICENSE). Bundled libraries and fonts keep their own licenses: foliate-js (MIT), pdf.js (Apache 2.0), Ktor (Apache 2.0), Literata and Atkinson Hyperlegible Next (SIL OFL).
