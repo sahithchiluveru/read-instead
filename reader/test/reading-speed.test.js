@@ -112,3 +112,23 @@ test('a long pause on a Spread full of text is still an idle gap', () => {
     for (let i = 0; i < MIN_SAMPLES - 1; i++) read(50)
     assert.equal(speed.minutesFor(6000), 5)
 })
+
+test('a wrong saved speed corrects itself once turns keep disagreeing with it the same way', () => {
+    // Saved from much denser books: 10 s per 1000 characters, but the owner now takes 50 s.
+    const { speed, read } = reader({ secondsPerCharacter: 0.01, samples: 40 })
+    assert.equal(speed.minutesFor(6000), 1)
+    read(50)
+    read(50)
+    assert.equal(speed.minutesFor(6000), 1, 'one or two outliers are still ignored')
+    read(50)
+    assert.equal(speed.minutesFor(6000), 5, 'three in a row on the same side re-seed it')
+    read(50)
+    assert.equal(speed.minutesFor(6000), 5)
+})
+
+test('outliers on both sides never add up to a correction', () => {
+    const { speed, read } = reader()
+    for (let i = 0; i < 10; i++) read(100) // 10 characters a second
+    for (let i = 0; i < 6; i++) read(i % 2 ? 25 : 400) // 4x faster, 4x slower, ...
+    assert.equal(speed.minutesFor(6000), 10)
+})
