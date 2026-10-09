@@ -15,7 +15,27 @@
     .banner h2 { font-size: 18px; margin: 0 0 4px; }
     .banner p { margin: 0; color: var(--dim); }
     body.unreachable .banner.unreachable, body.locked-out .banner.locked-out { display: block; }
-    body.unreachable :is(.status, .upload, .library), body.locked-out :is(.status, .upload, .library) { display: none; }
+    body.unreachable :is(.status, .tabs, .tab), body.locked-out :is(.status, .tabs, .tab) { display: none; }
+    [hidden] { display: none !important; }
+    .tabs { display: flex; gap: 8px; margin: 0 0 20px; }
+    .tabs button { flex: 1; padding: 10px; border: 2px solid var(--accent); border-radius: 999px; background: none;
+        color: var(--accent); font: 600 16px system-ui, sans-serif; }
+    .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+    .reading-head { display: flex; align-items: flex-start; gap: 12px; }
+    .reading-head > div { flex: 1; min-width: 0; }
+    .reading-title { font-size: 20px; overflow-wrap: anywhere; }
+    .reading-where { color: var(--dim); font: 14px system-ui, sans-serif; }
+    .refresh { flex: none; width: 44px; height: 44px; border: 1px solid #3D2F2340; border-radius: 50%; background: none;
+        color: var(--text); font-size: 22px; }
+    .nothing { color: var(--dim); font-size: 18px; }
+    .copy-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0 8px; }
+    .copy-buttons button { padding: 12px 8px; border: 0; border-radius: 10px; background: var(--accent); color: #fff;
+        font: 600 15px system-ui, sans-serif; }
+    .copy-buttons button:active { opacity: .7; }
+    .copied { min-height: 1.5em; margin: 0 0 8px; color: var(--dim); font: 14px system-ui, sans-serif; }
+    .page-text { margin: 0 0 16px; padding: 12px; border-radius: 10px; background: #FFFFFF80; white-space: pre-line;
+        overflow-wrap: anywhere; }
+    .page-text h3 { margin: 0 0 6px; color: var(--dim); font: 600 13px system-ui, sans-serif; text-transform: uppercase; }
     .pick { display: block; padding: 18px; border-radius: 12px; background: var(--accent); color: #fff;
         font: 600 18px system-ui, sans-serif; text-align: center; }
     .pick input { display: none; }
@@ -44,6 +64,32 @@
 <body>
 <h1>Read Instead</h1>
 <p class="status">Connected to your TV</p>
+<nav class="tabs" role="tablist">
+    <button role="tab" data-tab="reading" aria-selected="true">Now Reading</button>
+    <button role="tab" data-tab="books" aria-selected="false">Books</button>
+</nav>
+<section class="tab" data-tab="reading">
+    <div class="reading-head">
+        <div>
+            <div class="reading-title"></div>
+            <div class="reading-where"></div>
+        </div>
+        <button class="refresh" aria-label="Refresh">↻</button>
+    </div>
+    <p class="nothing" hidden>Nothing open on the TV</p>
+    <div class="reading-body" hidden>
+        <div class="copy-buttons">
+            <button data-copy="all">Copy all</button>
+            <button data-copy="info">Copy with book info</button>
+            <button data-copy="left">Copy left page</button>
+            <button data-copy="right">Copy right page</button>
+        </div>
+        <p class="copied" role="status"></p>
+        <div class="page-text left"><h3>Left page</h3><div></div></div>
+        <div class="page-text right"><h3>Right page</h3><div></div></div>
+    </div>
+</section>
+<section class="tab" data-tab="books" hidden>
 <section class="upload">
     <label class="pick">Upload books
         <input type="file" multiple accept=".epub,.pdf,application/epub+zip,application/pdf">
@@ -55,6 +101,7 @@
     <p class="none" hidden>No books on the TV yet.</p>
     <ul class="books"></ul>
 </section>
+</section>
 <section class="banner unreachable" role="alert">
     <h2>TV app not reachable</h2>
     <p>Open Read Instead on the TV, on the same Wi-Fi as this phone. This page reconnects by itself.</p>
@@ -64,6 +111,85 @@
     <p>The TV's key was reset. Scan the QR code on the TV's Add books screen to connect again.</p>
 </section>
 <script>
+    // Now Reading: the text of the Spread on the TV, to copy into ChatGPT. Refreshed when
+    // the tab opens, on ↻, and when the page is shown again.
+    let reading = { open: false }
+    const readingTab = document.querySelector('.tab[data-tab="reading"]')
+    const copiedNote = readingTab.querySelector('.copied')
+
+    const loadNowReading = async () => {
+        try {
+            const response = await fetch('/api/now-reading', { cache: 'no-store' })
+            if (!response.ok) return
+            reading = await response.json()
+        } catch {
+            return
+        }
+        copiedNote.textContent = ''
+        readingTab.querySelector('.nothing').hidden = reading.open
+        readingTab.querySelector('.reading-body').hidden = !reading.open
+        readingTab.querySelector('.reading-title').textContent = reading.open ? reading.title : ''
+        readingTab.querySelector('.reading-where').textContent =
+            reading.open ? [reading.chapter, reading.pageLabel].filter(Boolean).join(' · ') : ''
+        if (!reading.open) return
+        // One page showing (a slide, or a cover beside a blank page): no left/right split.
+        const single = !reading.left || !reading.right
+        readingTab.querySelector('.left div').textContent = single ? bothPages() : reading.left
+        readingTab.querySelector('.right div').textContent = reading.right
+        readingTab.querySelector('.right').hidden = single
+        readingTab.querySelector('.left h3').hidden = single
+        readingTab.querySelector('[data-copy="right"]').hidden = single
+        readingTab.querySelector('[data-copy="left"]').textContent = single ? 'Copy page' : 'Copy left page'
+    }
+
+    const bothPages = () => [reading.left, reading.right].filter(Boolean).join('\n\n')
+    const copyTexts = {
+        all: bothPages,
+        info: () => `From '${reading.title}'${reading.author ? ` by ${reading.author}` : ''}` +
+            `${reading.chapter ? `, ${reading.chapter}` : ''}:\n\n${bothPages()}`,
+        left: () => reading.left || reading.right, // "Copy page" when only one shows
+        right: () => reading.right,
+    }
+
+    // navigator.clipboard needs a secure (HTTPS) page, and this one is plain HTTP on the
+    // LAN, so copy the old way: select a hidden textarea during the tap and execCommand.
+    const copy = text => {
+        const area = document.createElement('textarea')
+        area.value = text
+        area.readOnly = true
+        area.style.cssText = 'position: fixed; top: 0; opacity: 0'
+        document.body.append(area)
+        area.select()
+        area.setSelectionRange(0, text.length)
+        let copied = false
+        try {
+            copied = document.execCommand('copy')
+        } catch {}
+        area.remove()
+        return copied
+    }
+
+    readingTab.querySelector('.copy-buttons').addEventListener('click', e => {
+        const button = e.target.closest('button')
+        if (!button) return
+        copiedNote.textContent = copy(copyTexts[button.dataset.copy]())
+            ? `Copied: ${button.textContent.replace(/^Copy /, '')}`
+            : "Couldn't copy: long-press the text below to select it instead"
+    })
+    readingTab.querySelector('.refresh').addEventListener('click', loadNowReading)
+
+    const showTab = name => {
+        for (const tab of document.querySelectorAll('[role="tab"]')) tab.setAttribute('aria-selected', tab.dataset.tab === name)
+        for (const panel of document.querySelectorAll('.tab')) panel.hidden = panel.dataset.tab !== name
+        if (name === 'reading') loadNowReading()
+        else loadLibrary()
+    }
+    const currentTab = () => document.querySelector('[aria-selected="true"]').dataset.tab
+    document.querySelector('.tabs').addEventListener('click', e => {
+        const tab = e.target.closest('[role="tab"]')
+        if (tab) showTab(tab.dataset.tab)
+    })
+
     // Uploads go one file at a time, each its own request, so each gets its own progress bar.
     const picker = document.querySelector('.pick input')
     const list = document.querySelector('.uploads')
@@ -173,17 +299,18 @@
         } catch {
             state = 'unreachable'
         }
-        // Back in touch after a gap: the TV's books may have changed meanwhile.
-        if (!state && document.body.className) loadLibrary()
+        // Back in touch after a gap: the TV may have changed meanwhile.
+        if (!state && document.body.className) showTab(currentTab())
         document.body.className = state
     }
     setInterval(check, 5000)
     addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible') return
         check()
-        loadLibrary()
+        showTab(currentTab())
     })
-    loadLibrary()
+    // Open on Now Reading while a book is open on the TV, else on Books.
+    loadNowReading().then(() => reading.open || showTab('books'))
     addEventListener('online', check)
 </script>
 </body>

@@ -35,6 +35,7 @@ describe('reading a PDF', () => {
         assert.equal(cover.format, 'pdf')
         assert.deepEqual([cover.left, cover.right], ['', page(1)])
         assert.equal(cover.chapter, '')
+        assert.equal(cover.pageLabel, 'Page 1 of 45')
         const [coverBox] = await pageBoxes(app)
         assert.ok(coverBox.left >= 0.5, 'the cover sits on the right half')
 
@@ -42,6 +43,7 @@ describe('reading a PDF', () => {
         assert.deepEqual([spread.left, spread.right], [page(2), page(3)])
         assert.equal(spread.position, '2')
         assert.equal(spread.chapter, 'Chapter One')
+        assert.equal(spread.pageLabel, 'Pages 2–3 of 45')
         await app.close()
     })
 
@@ -51,6 +53,7 @@ describe('reading a PDF', () => {
         assert.deepEqual(pagesShown(await app.press('ArrowRight')), ['Page 3', 'Page 4'])
         const last = await app.press('ArrowRight')
         assert.deepEqual(pagesShown(last), ['Page 5', ''])
+        assert.equal(last.pageLabel, 'Page 5 of 5')
         assert.equal(last.progress, 1)
         // → at the end of the book does nothing.
         const count = await app.stateCount()

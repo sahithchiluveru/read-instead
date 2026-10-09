@@ -26,6 +26,7 @@ private const val READER_URL = "https://appassets.androidplatform.net/assets/rea
 /** Thin shell: one fullscreen WebView running the web reader bundled in assets/reader. */
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
+    private lateinit var bridge: ReaderSessionBridge
     private val app get() = application as ReadInsteadApp
 
     // The phone added or deleted a book: the Shelf (and an open book) follow at once.
@@ -57,7 +58,7 @@ class MainActivity : ComponentActivity() {
             .build()
 
         // The screen stays awake (no screensaver or ambient mode) only while a book is open.
-        val bridge = ReaderSessionBridge(library) { open ->
+        bridge = ReaderSessionBridge(library) { open ->
             runOnUiThread { keepScreenOn(open) }
         }
 
@@ -89,6 +90,7 @@ class MainActivity : ComponentActivity() {
         }
         setContentView(webView)
         library.addListener(onLibraryChange)
+        app.readerSession = bridge
         webView.loadUrl(READER_URL)
         webView.requestFocus()
 
@@ -121,6 +123,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         app.library.removeListener(onLibraryChange)
+        if (app.readerSession === bridge) app.readerSession = null // not a newer Activity's
         webView.destroy()
         super.onDestroy()
     }

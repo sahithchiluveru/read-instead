@@ -15,7 +15,7 @@ export class EpubReader {
     #shown = null // the last location reported
     #onShown = null // resolves the turn in progress
 
-    // onLocation receives { position, progress, chapter, left, right } whenever a new
+    // onLocation receives { position, pageLabel, progress, chapter, left, right } whenever a new
     // Spread is on screen.
     constructor(stage, { onKey, onLocation }) {
         this.#stage = stage
@@ -62,6 +62,8 @@ export class EpubReader {
     #location({ cfi, fraction, tocItem, range }) {
         return {
             position: cfi,
+            // No fixed pages in a reflowable book: the label is how far through it this is.
+            pageLabel: `${Math.round((fraction ?? 0) * 100)}%`,
             progress: fraction ?? 0,
             chapter: tocItem?.label?.trim() ?? '',
             ...this.#visibleText(range),

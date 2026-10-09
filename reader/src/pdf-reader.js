@@ -31,7 +31,7 @@ export class PdfReader {
         canvas.width = canvas.height = 0
     }, () => {}))
 
-    // onLocation receives { position, progress, chapter, left, right } whenever a new
+    // onLocation receives { position, pageLabel, progress, chapter, left, right } whenever a new
     // Spread is on screen. The Position is the first page number shown.
     constructor(container, { onLocation }) {
         this.#container = container
@@ -129,8 +129,10 @@ export class PdfReader {
         if (this.#spread !== spread || this.#closed) return
         const first = left ?? right
         const last = this.#spreads.length - 1
+        const pages = this.#doc.numPages
         this.#onLocation({
             position: String(first),
+            pageLabel: left && right ? `Pages ${left}–${right} of ${pages}` : `Page ${first} of ${pages}`,
             progress: last ? spread / last : 1,
             chapter: chapters.findLast(chapter => chapter.page <= first)?.title ?? '',
             left: leftText,

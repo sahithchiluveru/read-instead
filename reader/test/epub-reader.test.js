@@ -57,6 +57,9 @@ describe('reading an EPUB', () => {
         const third = await app.press('ArrowRight')
         assert.notEqual(third.left, second.left)
         assert.ok(third.progress > second.progress && second.progress > first.progress)
+        // EPUBs have no fixed pages: the label is how far through the book this Spread is.
+        for (const state of [first, second, third])
+            assert.equal(state.pageLabel, `${Math.round(state.progress * 100)}%`)
         assert.deepEqual(await app.press('ArrowLeft'), second)
         assert.deepEqual(await app.press('ArrowLeft'), first)
         await app.close()

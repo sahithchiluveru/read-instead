@@ -5,6 +5,7 @@ import android.util.Log
 import io.github.sahithchiluveru.readinstead.library.Library
 import io.github.sahithchiluveru.readinstead.phone.AccessKey
 import io.github.sahithchiluveru.readinstead.phone.PhoneServer
+import io.github.sahithchiluveru.readinstead.phone.ReaderSession
 import java.util.concurrent.Executors
 
 /**
@@ -21,7 +22,12 @@ class ReadInsteadApp : Application() {
             override fun save(key: String) = library.saveSetting("accessKey", key)
         })
     }
-    val phoneServer by lazy { PhoneServer(accessKey, library) }
+
+    /** The open Activity's Reader session, for Now Reading; null while there's none. */
+    @Volatile
+    var readerSession: ReaderSession? = null
+
+    val phoneServer by lazy { PhoneServer(accessKey, library, session = { readerSession?.currentSpread() }) }
 
     // Starting and stopping the server touches sockets, so it stays off the main thread,
     // and one executor keeps every start and stop in order.

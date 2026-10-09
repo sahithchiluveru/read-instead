@@ -8,6 +8,7 @@ import io.github.sahithchiluveru.readinstead.library.toJson
 import io.ktor.http.ContentType
 import io.ktor.http.Cookie
 import io.ktor.http.CookieEncoding
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -21,6 +22,7 @@ import io.ktor.http.content.forEachPart
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.request.path
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondRedirect
@@ -44,6 +46,7 @@ import kotlinx.serialization.encodeToString
 class PhoneServer(
     private val accessKey: AccessKey,
     private val library: Library,
+    private val session: ReaderSession,
     private val port: Int = PORT,
 ) {
     private var server: EmbeddedServer<*, *>? = null
@@ -94,6 +97,18 @@ class PhoneServer(
         routing {
             get("/") { call.respondText(resource("index.html"), ContentType.Text.Html) }
             get("/api/ping") { call.respondText("""{"ok":true}""", ContentType.Application.Json) }
+            get("/api/now-reading") {
+                // Always the TV's current Spread, never a copy cached by the phone.
+                call.response.header(HttpHeaders.CacheControl, "no-store")
+                val spread = session.currentSpread()
+                val book = spread?.let { library.book(it.bookId) }
+                val body = if (spread == null || book == null) """{"open":false}"""
+                else json.encodeToString(NowReading(
+                    bookId = book.id, title = book.title, author = book.author, chapter = spread.chapter,
+                    pageLabel = spread.pageLabel, left = spread.left, right = spread.right,
+                ))
+                call.respondText(body, ContentType.Application.Json)
+            }
             get("/api/books") { call.respondText(library.books().toJson(), ContentType.Application.Json) }
             get("/api/books/{id}/cover") {
                 val cover = library.cover(call.parameters["id"]!!)
@@ -119,6 +134,19 @@ class PhoneServer(
             }
         }
     }
+
+    /** The Now Reading panel's data: the four copy variants are all built from it on the phone. */
+    @Serializable
+    private class NowReading(
+        val open: Boolean = true,
+        val bookId: String,
+        val title: String,
+        val author: String?,
+        val chapter: String,
+        val pageLabel: String,
+        val left: String,
+        val right: String,
+    )
 
     @Serializable
     private class UploadResults(val results: List<UploadResult>)

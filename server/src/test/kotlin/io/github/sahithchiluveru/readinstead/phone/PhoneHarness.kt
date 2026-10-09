@@ -30,6 +30,7 @@ class MemoryKeyStore : AccessKey.Store {
 /**
  * The Phone server over a temporary Library, and an HTTP client playing the phone's
  * browser. The Library's clock ticks once per reading, so every event is ordered.
+ * [spread] stubs the Reader session: what the TV's reader last reported, or null.
  */
 class PhoneHarness(private val covers: Covers = object : Covers {}) : AutoCloseable {
     val dir: File = Files.createTempDirectory("read-instead-library").toFile()
@@ -38,7 +39,9 @@ class PhoneHarness(private val covers: Covers = object : Covers {}) : AutoClosea
     private var tick = 0L
     var library = newLibrary()
         private set
-    private var server = PhoneServer(accessKey, library, port = 0)
+    var spread: Spread? = null
+    private val session = ReaderSession { spread }
+    private var server = PhoneServer(accessKey, library, session, port = 0)
     private val client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build()
     private var base = "http://127.0.0.1:${server.start()}"
 
@@ -48,7 +51,7 @@ class PhoneHarness(private val covers: Covers = object : Covers {}) : AutoClosea
     fun restart() {
         server.stop()
         library = newLibrary()
-        server = PhoneServer(accessKey, library, port = 0)
+        server = PhoneServer(accessKey, library, session, port = 0)
         base = "http://127.0.0.1:${server.start()}"
     }
 
