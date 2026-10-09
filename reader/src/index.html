@@ -46,8 +46,18 @@
             <button data-action="hide">Hide bar</button>
             <button data-action="shelf">Shelf</button>
         </div>
+        <button class="return" data-action="return" hidden></button>
     </header>
     <div id="stage"></div>
+    <section id="contents" class="overlay" hidden>
+        <h2>Contents</h2>
+        <ol></ol>
+        <p class="empty">This book has no contents.</p>
+    </section>
+    <section id="go-to" class="overlay" hidden>
+        <div class="readout"><span class="percent"></span><span class="chapter"></span></div>
+        <div class="track"><span class="fill"></span><span class="thumb"></span></div>
+    </section>
     <output id="hud"></output>
 </section>
 <output id="toast" hidden></output>

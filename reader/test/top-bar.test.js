@@ -236,10 +236,11 @@ describe('Bar focus', () => {
         const app = await reader.launch()
         await app.open(chapters)
         await app.press('ArrowUp')
+        await focusButton(app, 'Font')
         const count = await app.stateCount()
         await pressQuietly(app, 'Enter')
         assert.equal(await app.stateCount(), count)
-        assert.equal(await focusedButton(app), 'Contents')
+        assert.equal(await focusedButton(app), 'Font')
         await app.close()
     })
 

@@ -30,8 +30,10 @@ const opf = ({ title, metadata = '', manifest, spine }) => `<?xml version="1.0" 
   <spine>${spine}</spine>
 </package>`
 
-const nav = items => xhtml('Contents', `<nav epub:type="toc"><ol>${
-    items.map(([href, label]) => `<li><a href="${href}">${label}</a></li>`).join('')}</ol></nav>`)
+// items: [[href, label, children?]], children nesting the same way.
+const navList = items => `<ol>${items.map(([href, label, children]) =>
+    `<li><a href="${href}">${label}</a>${children ? navList(children) : ''}</li>`).join('')}</ol>`
+const nav = items => xhtml('Contents', `<nav epub:type="toc">${navList(items)}</nav>`)
 
 const epub = files => zip([
     ['mimetype', 'application/epub+zip'],
@@ -100,5 +102,25 @@ export const fixedLayoutEpub = () => {
         }),
         'nav.xhtml': nav(pages.map(n => [`p${n}.xhtml`, `Page ${n}`])),
         ...Object.fromEntries(pages.map(n => [`p${n}.xhtml`, page(n)])),
+    })
+}
+
+// Contents with nesting: Part One (with Chapter 1 and Chapter 2 inside it), then Part Two.
+// Each entry is its own spine section, a short page of prose.
+export const nestedContentsEpub = () => {
+    const sections = [['part1', 'Part One'], ['c1', 'Chapter 1'], ['c2', 'Chapter 2'], ['part2', 'Part Two']]
+    return epub({
+        'content.opf': opf({
+            title: 'Nested Contents Fixture',
+            manifest: sections.map(([id]) =>
+                `<item id="${id}" href="${id}.xhtml" media-type="application/xhtml+xml"/>`).join('\n'),
+            spine: sections.map(([id]) => `<itemref idref="${id}"/>`).join(''),
+        }),
+        'nav.xhtml': nav([
+            ['part1.xhtml', 'Part One', [['c1.xhtml', 'Chapter 1'], ['c2.xhtml', 'Chapter 2']]],
+            ['part2.xhtml', 'Part Two'],
+        ]),
+        ...Object.fromEntries(sections.map(([id, label]) =>
+            [`${id}.xhtml`, xhtml(label, `<h1>${label}</h1>\n${paragraph(`${id}-1`)}`)])),
     })
 }

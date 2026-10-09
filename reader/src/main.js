@@ -1,11 +1,13 @@
 import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
 import { loadPosition, reportState } from './bridge.js'
+import { closeContents, focusedContentsEntry, moveContentsFocus, openContents } from './contents.js'
+import { closeGoTo, goToTarget, leapGoTo, nudgeGoTo, openGoTo } from './go-to.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
 import { bookAdded, bookDeleted, initShelf, renderShelf } from './shelf.js'
 import {
-    blurTopBar, focusTopBar, focusedTopBarAction, hideTopBar, moveTopBarFocus, resetTopBar, showTopBarLocation,
-    toggleTopBar,
+    blurTopBar, focusTopBar, focusedTopBarAction, hideTopBar, moveTopBarFocus, offerReturn, resetTopBar,
+    showTopBarLocation, toggleTopBar, withdrawReturn,
 } from './top-bar.js'
 
 const readers = { pdf: PdfReader, epub: EpubReader }
@@ -15,9 +17,11 @@ const readerScreen = document.getElementById('reader')
 const stage = document.getElementById('stage')
 const hud = document.getElementById('hud')
 
-// The open book: { book: { id, format, ... }, reader, ready, mode, location }. Keys only
-// reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread) or 'bar' (Bar
-// focus: ←/→ move between the Top Bar's buttons); location is the Spread on screen.
+// The open book: { book: { id, format, ... }, reader, ready, mode, location, returnTo }.
+// Keys only reach the reader once it's ready. mode is 'reading' (←/→ turn the Spread),
+// 'bar' (Bar focus: ←/→ move between the Top Bar's buttons), or an overlay opened from
+// it: 'contents' or 'go-to'. location is the Spread on screen, and returnTo the one
+// before the last jump, which the Return chip goes back to.
 // Each reader draws into its own element in the stage, so one abandoned mid-open can't
 // touch the next book's pages.
 let session = null
@@ -54,20 +58,68 @@ const report = () => {
     if (location) reportState({ open: true, bookId: book.id, format: book.format, mode, ...location })
 }
 
-const setMode = mode => {
+// In Bar focus, focus starts on the button with this action, if given.
+const setMode = (mode, action) => {
     session.mode = mode
-    if (mode === 'bar') focusTopBar()
+    if (mode === 'bar') focusTopBar(action)
     else blurTopBar()
     report()
 }
 
+// Go somewhere else in the book from an overlay, back in Reading mode, and offer the
+// Return chip for the Spread left behind.
+const jump = async navigate => {
+    const jumping = session
+    const from = jumping.location
+    setMode('reading')
+    queuedTurns = 0
+    try {
+        await navigate(jumping.reader)
+    } catch (error) {
+        console.error(error)
+        return
+    }
+    if (session !== jumping || !from) return
+    jumping.returnTo = from
+    offerReturn(from.progress)
+}
+
+// Contents waits for the reader's list, so Bar focus may have been left meanwhile.
+const openContentsOverlay = async () => {
+    const opening = session
+    let contents
+    try {
+        contents = await opening.reader.contents()
+    } catch (error) {
+        console.error(error)
+        return
+    }
+    if (session !== opening || opening.mode !== 'bar') return
+    openContents(contents)
+    setMode('contents')
+}
+
 // What each Top Bar button does; the rest arrive with later overlays.
 const barActions = {
+    contents: openContentsOverlay,
+    'go-to'() {
+        const { reader, location } = session
+        openGoTo(location ?? { progress: 0, chapter: '' }, fraction => reader.chapterAt(fraction))
+        setMode('go-to')
+    },
     hide() {
         hideTopBar()
         setMode('reading')
     },
     shelf: () => closeBook(),
+    return() {
+        const { position } = session.returnTo
+        session.returnTo = null
+        withdrawReturn()
+        setMode('reading')
+        queuedTurns = 0
+        session.reader.goTo(position).catch(error => console.error(error))
+    },
 }
 
 // Reading mode: ←/→ turn the Spread, ↓ hides/shows the Top Bar, ↑ enters Bar focus and
@@ -87,12 +139,55 @@ const barKeys = {
     Enter: () => barActions[focusedTopBarAction()]?.(),
 }
 
+// Contents: ↑↓ move through the chapters, OK jumps to one.
+const contentsKeys = {
+    ArrowLeft() {},
+    ArrowRight() {},
+    ArrowUp: () => moveContentsFocus(-1),
+    ArrowDown: () => moveContentsFocus(1),
+    Enter() {
+        const entry = focusedContentsEntry()
+        if (!entry) return
+        closeContents()
+        jump(reader => reader.goTo(entry.target))
+    },
+}
+
+// Go to %: ←/→ move 1% (faster when held), ↑/↓ 10%, OK jumps (unless it hasn't moved).
+const goToKeys = {
+    ArrowLeft: e => nudgeGoTo(-1, e.repeat),
+    ArrowRight: e => nudgeGoTo(1, e.repeat),
+    ArrowUp: () => leapGoTo(1),
+    ArrowDown: () => leapGoTo(-1),
+    Enter() {
+        const fraction = goToTarget()
+        closeGoTo()
+        if (fraction === null) setMode('reading')
+        else jump(reader => reader.goToFraction(fraction))
+    },
+}
+
+const keysByMode = { reading: readingKeys, bar: barKeys, contents: contentsKeys, 'go-to': goToKeys }
+
+// Back leaves an overlay for Bar focus on its button, and Bar focus for Reading mode.
+const backByMode = {
+    bar: () => setMode('reading'),
+    contents() {
+        closeContents()
+        setMode('bar', 'contents')
+    },
+    'go-to'() {
+        closeGoTo()
+        setMode('bar', 'go-to')
+    },
+}
+
 const onKey = e => {
     if (!session?.ready) return
-    const action = (session.mode === 'bar' ? barKeys : readingKeys)[e.key]
+    const action = keysByMode[session.mode][e.key]
     if (action) {
         e.preventDefault()
-        action()
+        action(e)
         return
     }
     const direction = arrowDirection(e.key)
@@ -109,7 +204,7 @@ const openBook = async book => {
     queuedTurns = 0
     hud.textContent = 'Opening…'
     resetTopBar(book.format)
-    const opening = { book, ready: false, mode: 'reading', location: null }
+    const opening = { book, ready: false, mode: 'reading', location: null, returnTo: null }
     const onLocation = location => {
         if (session !== opening) return
         opening.location = location
@@ -144,6 +239,8 @@ const openBook = async book => {
 const closeBook = () => {
     const closed = session?.book.id
     blurTopBar()
+    closeContents()
+    closeGoTo()
     if (session?.ready) {
         try {
             session.reader.close()
@@ -184,7 +281,8 @@ window.readInstead = {
             return true
         }
         if (readerScreen.hidden) return false
-        if (session?.mode === 'bar') setMode('reading')
+        const back = backByMode[session?.mode]
+        if (back) back()
         else closeBook()
         return true
     },

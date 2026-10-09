@@ -16,6 +16,7 @@ export class EpubReader {
     #onLocation
     #navigating = Promise.resolve()
     #shown = null // the last location reported
+    #tocItem = null // the Contents entry of the Spread on screen
     #onShown = null // resolves the turn in progress
 
     // onLocation receives { position, pageLabel, progress, chapter, pagesLeftInChapter, left,
@@ -52,6 +53,7 @@ export class EpubReader {
         if (!this.#onSpread() || detail.cfi === this.#shown?.position) return
         const location = this.#location(detail)
         this.#shown = location
+        this.#tocItem = detail.tocItem
         this.#onLocation(location)
         this.#onShown?.()
     }
@@ -120,6 +122,44 @@ export class EpubReader {
 
     next() {
         return this.#turn(() => this.#view.next())
+    }
+
+    // The Contents in reading order, nested entries flattened after their parent:
+    // { entries: [{ label, depth, target }], current }, where current is the index of the
+    // Spread's entry (-1 if none) and target is what goTo() takes.
+    async contents() {
+        const entries = []
+        const items = []
+        const flatten = (list, depth) => list?.forEach(item => {
+            entries.push({ label: item.label?.trim() ?? '', depth, target: item.href })
+            items.push(item)
+            flatten(item.subitems, depth + 1)
+        })
+        flatten(this.#view.book.toc, 0)
+        return { entries, current: items.indexOf(this.#tocItem) }
+    }
+
+    // The chapter at a fraction of the book (0–1), as Go to % previews it.
+    async chapterAt(fraction) {
+        const { index } = this.#view.resolveNavigation({ fraction })
+        return this.#view.getProgressOf(index).tocItem?.label?.trim() ?? ''
+    }
+
+    // Jump to a Contents entry's target or a Position (a CFI).
+    goTo(target) {
+        return this.#jump(() => this.#view.goTo(target))
+    }
+
+    goToFraction(fraction) {
+        return this.#jump(() => this.#view.goToFraction(fraction))
+    }
+
+    // foliate ignores navigation while a turn settles, so a jump waits it out too.
+    async #jump(navigate) {
+        await this.#navigating
+        const jumped = navigate()
+        this.#navigating = jumped.catch(() => {})
+        await jumped
     }
 
     prev() {

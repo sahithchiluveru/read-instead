@@ -301,3 +301,128 @@ html, body {
     color: var(--bg);
     transform: scale(1.05);
 }
+/* The Return chip: a small pill at the right of the band, shown for a few seconds after a
+   jump and in Bar focus (where it's the last stop) until used. */
+#top-bar .return {
+    display: none;
+    position: absolute;
+    top: 6px;
+    right: 0;
+    background: var(--bg);
+    box-shadow: 0 1px 6px color-mix(in srgb, var(--text) 20%, transparent);
+    color: var(--text);
+}
+#top-bar .return.fresh, #top-bar.focused .return {
+    display: block;
+}
+/* Contents and Go to %: panels over the pages, opened from Bar focus. */
+.overlay {
+    position: absolute;
+    z-index: 2;
+    box-sizing: border-box;
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: 0 4px 24px color-mix(in srgb, var(--text) 30%, transparent);
+    font-family: system-ui, sans-serif;
+}
+/* Contents: one column down the middle; nested entries indent 24 dp per level. */
+#contents {
+    top: 44px;
+    bottom: 27px;
+    left: 50%;
+    width: 480px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 12px;
+}
+#contents h2 {
+    margin: 0 12px 10px;
+    color: var(--dim);
+    font-size: 14px;
+    font-weight: 500;
+}
+#contents ol {
+    flex: 1;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+#contents li button {
+    display: block;
+    width: 100%;
+    padding: 7px 14px 7px calc(14px + var(--depth, 0) * 24px);
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: 17px/22px system-ui, sans-serif;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#contents li button.current {
+    color: var(--accent);
+    font-weight: 600;
+}
+#contents li button:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    background: var(--text);
+    color: var(--bg);
+}
+#contents .empty {
+    margin: 12px;
+    color: var(--dim);
+}
+/* Go to %: a wide slider across the middle of the screen. */
+#go-to {
+    top: 50%;
+    left: 96px;
+    right: 96px;
+    transform: translateY(-50%);
+    padding: 20px 32px 28px;
+}
+#go-to .readout {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+#go-to .percent {
+    min-width: 3.2em;
+    font-size: 28px;
+    font-variant-numeric: tabular-nums;
+}
+#go-to .chapter {
+    overflow: hidden;
+    color: var(--dim);
+    font-size: 17px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+#go-to .track {
+    position: relative;
+    height: 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--text) 15%, transparent);
+}
+#go-to .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: var(--accent);
+}
+#go-to .thumb {
+    position: absolute;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    background: var(--text);
+    transform: translate(-50%, -50%);
+}

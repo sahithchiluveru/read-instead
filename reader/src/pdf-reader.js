@@ -25,7 +25,7 @@ export class PdfReader {
     #pairing
     #spreads = []
     #spread = 0 // index into #spreads
-    #chapters // Promise of [{ title, page }] from the outline, by page
+    #chapters // Promise of the outline, in order: [{ title, page, depth }]
     #queue = Promise.resolve()
     #cache = new LruCache(CACHE_PAGES, (_, entry) => entry.then(canvas => {
         canvas.width = canvas.height = 0
@@ -70,6 +70,40 @@ export class PdfReader {
         return this.#goTo(this.#spread - 1)
     }
 
+    // The outline as Contents (see EpubReader.contents); an entry's target is its page.
+    async contents() {
+        const chapters = await this.#chapters
+        return {
+            entries: chapters.map(({ title, depth, page }) => ({ label: title, depth, target: page })),
+            current: chapterIndexAt(chapters, this.#firstPage(this.#spread)),
+        }
+    }
+
+    // The chapter at a fraction of the book (0–1), as Go to % previews it.
+    async chapterAt(fraction) {
+        const chapters = await this.#chapters
+        return chapters[chapterIndexAt(chapters, this.#firstPage(this.#spreadAt(fraction)))]?.title ?? ''
+    }
+
+    // Jump to a page: a Contents entry's target or a Position.
+    goTo(target) {
+        return this.#goTo(spreadIndexOf(this.#spreads, Number(target)))
+    }
+
+    goToFraction(fraction) {
+        return this.#goTo(this.#spreadAt(fraction))
+    }
+
+    // The inverse of the reported progress.
+    #spreadAt(fraction) {
+        return Math.round(fraction * (this.#spreads.length - 1))
+    }
+
+    #firstPage(spread) {
+        const { left, right } = this.#spreads[spread]
+        return left ?? right
+    }
+
     close() {
         this.#closed = true
         this.#container.replaceChildren()
@@ -85,16 +119,17 @@ export class PdfReader {
         }))
     }
 
+    // Entries whose destination isn't a page are left out.
     async #readChapters() {
         const entries = []
-        const flatten = items => items?.forEach(item => {
-            entries.push(item)
-            flatten(item.items)
+        const flatten = (items, depth) => items?.forEach(item => {
+            entries.push({ ...item, depth })
+            flatten(item.items, depth + 1)
         })
-        flatten(await this.#doc.getOutline())
-        const chapters = await Promise.all(entries.map(async ({ title, dest }) =>
-            ({ title: title.trim(), page: await this.#pageOfDest(dest) })))
-        return chapters.filter(chapter => chapter.page).sort((a, b) => a.page - b.page)
+        flatten(await this.#doc.getOutline(), 0)
+        const chapters = await Promise.all(entries.map(async ({ title, dest, depth }) =>
+            ({ title: title.trim(), page: await this.#pageOfDest(dest), depth })))
+        return chapters.filter(chapter => chapter.page)
     }
 
     async #pageOfDest(dest) {
@@ -127,14 +162,14 @@ export class PdfReader {
         const [leftText, rightText, chapters] = await Promise.all([
             left ? this.#text(left) : '', right ? this.#text(right) : '', this.#chapters])
         if (this.#spread !== spread || this.#closed) return
-        const first = left ?? right
+        const first = this.#firstPage(spread)
         const last = this.#spreads.length - 1
         const pages = this.#doc.numPages
         this.#onLocation({
             position: String(first),
             pageLabel: left && right ? `Pages ${left}–${right} of ${pages}` : `Page ${first} of ${pages}`,
             progress: last ? spread / last : 1,
-            chapter: chapters.findLast(chapter => chapter.page <= first)?.title ?? '',
+            chapter: chapters[chapterIndexAt(chapters, first)]?.title ?? '',
             left: leftText,
             right: rightText,
         })
@@ -196,6 +231,11 @@ export class PdfReader {
         return canvas
     }
 }
+
+// The index of the outline entry a page belongs to: the one starting nearest before it
+// (the last listed, if several start on the same page), or -1 before the first chapter.
+const chapterIndexAt = (chapters, page) => chapters.reduce((found, { page: start }, i) =>
+    start <= page && (found < 0 || start >= chapters[found].page) ? i : found, -1)
 
 const blankLike = canvas => {
     const blank = document.createElement('div')
