@@ -198,7 +198,7 @@
         added: book => book.unreadable ? "Added, but the TV couldn't open this book" : 'Added to your shelf',
         duplicate: () => 'Already on your shelf',
         unsupported: () => 'Only EPUB, PDF and CBZ are supported',
-        cbr: () => "CBR isn't supported: convert it to CBZ with Calibre",
+        cbr: () => "CBR isn't supported: extract it and zip the images as .cbz",
     }
     let queue = Promise.resolve()
 
