@@ -61,4 +61,5 @@ tasks.named("preBuild") { dependsOn(copyReader) }
 dependencies {
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.webkit:webkit:1.12.1")
+    implementation(project(":server"))
 }

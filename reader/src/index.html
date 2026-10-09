@@ -14,8 +14,16 @@
     <div class="books">
         <button data-id="moby-dick" data-format="pdf" data-src="../books/moby-dick.pdf">Moby-Dick<small>PDF · 530 pages</small></button>
         <button data-id="war-and-peace" data-format="epub" data-src="../books/war-and-peace.epub">War and Peace<small>EPUB · large novel</small></button>
+        <button id="add-books">Add books<small>From your phone</small></button>
     </div>
 </main>
+<section id="add-books-screen" hidden>
+    <h1>Add books</h1>
+    <div class="qr"></div>
+    <p class="hint"></p>
+    <p class="address"></p>
+    <button id="reset-key">Reset key</button>
+</section>
 <section id="reader" hidden>
     <div id="stage"></div>
     <output id="hud"></output>

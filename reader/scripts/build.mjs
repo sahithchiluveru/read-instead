@@ -1,6 +1,6 @@
 // Assembles reader/dist (or the directory given as the first argument), which the
 // Android app bundles as assets/reader.
-// Layout: src/ (our code), vendor/ (foliate-js, pdf.js), books/ (bundled sample books).
+// Layout: src/ (our code), vendor/ (foliate-js, pdf.js, uqr), books/ (bundled sample books).
 import { cp, rm, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, resolve } from 'node:path'
@@ -31,5 +31,8 @@ await cp(foliate, join(dist, 'vendor/foliate-js'), {
 })
 for (const file of pdfjsFiles)
     await cp(join(modules, 'pdfjs-dist', file), join(dist, 'vendor/pdfjs', file), { recursive: true })
+
+for (const file of ['dist/index.mjs', 'LICENSE'])
+    await cp(join(modules, 'uqr', file), join(dist, 'vendor/uqr', file))
 
 console.log(`reader built into ${dist}`)

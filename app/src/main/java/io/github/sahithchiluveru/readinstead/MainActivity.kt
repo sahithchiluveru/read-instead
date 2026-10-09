@@ -2,6 +2,7 @@ package io.github.sahithchiluveru.readinstead
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
@@ -23,6 +24,7 @@ private const val READER_URL = "https://appassets.androidplatform.net/assets/rea
 /** Thin shell: one fullscreen WebView running the web reader bundled in assets/reader. */
 class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
+    private val app get() = application as ReadInsteadApp
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +60,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
             addJavascriptInterface(bridge, "ReadInsteadNative")
+            val connectivity = getSystemService(ConnectivityManager::class.java)
+            addJavascriptInterface(PhoneLinkBridge(app.accessKey, app.phoneServer, connectivity), "ReadInsteadPhone")
             isFocusable = true
             isFocusableInTouchMode = true
         }
@@ -79,6 +83,17 @@ class MainActivity : ComponentActivity() {
     private fun keepScreenOn(on: Boolean) {
         val flag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         if (on) window.addFlags(flag) else window.clearFlags(flag)
+    }
+
+    // The Phone Page is served only while the app is in the foreground.
+    override fun onStart() {
+        super.onStart()
+        app.startPhoneServer()
+    }
+
+    override fun onStop() {
+        app.stopPhoneServer()
+        super.onStop()
     }
 
     override fun onDestroy() {

@@ -39,18 +39,30 @@ export const startReader = async books => {
     const origin = `http://127.0.0.1:${server.address().port}`
     const browser = await chromium.launch()
 
-    // A fresh app launch. savedPositions plays the native side's persisted Positions.
-    const launch = async (savedPositions = {}) => {
+    // A fresh app launch. positions plays the native side's persisted Positions; links
+    // are what successive calls for the Phone Page link return (the first, then one per
+    // key reset).
+    const launch = async ({ positions = {}, links = [] } = {}) => {
         const context = await browser.newContext({ viewport })
         const page = await context.newPage()
         page.on('pageerror', error => console.error('page error:', error))
-        await page.addInitScript(saved => {
+        await page.addInitScript(({ positions, links }) => {
             window.reportedStates = []
             window.ReadInsteadNative = {
-                loadPosition: bookId => saved[bookId] ?? null,
+                loadPosition: bookId => positions[bookId] ?? null,
                 onReaderState: json => window.reportedStates.push(JSON.parse(json)),
             }
-        }, savedPositions)
+            let link = 0
+            window.keyResets = 0
+            window.ReadInsteadPhone = {
+                link: () => JSON.stringify(links[link] ?? { address: null, url: null, error: null }),
+                resetKey: () => {
+                    window.keyResets++
+                    link++
+                    return window.ReadInsteadPhone.link()
+                },
+            }
+        }, { positions, links })
         await page.goto(`${origin}/src/index.html`)
         return new App(page, context)
     }

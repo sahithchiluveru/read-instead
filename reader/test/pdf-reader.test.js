@@ -97,7 +97,7 @@ describe('reading a PDF', () => {
         assert.equal(saved.position, '6')
         await app.close()
 
-        const relaunched = await reader.launch({ book: saved.position })
+        const relaunched = await reader.launch({ positions: { book: saved.position } })
         const restored = await relaunched.open(book('book'))
         assert.deepEqual([restored.left, restored.right], [saved.left, saved.right])
         await relaunched.close()

@@ -39,6 +39,14 @@ describe('reading an EPUB', () => {
         await app.close()
     })
 
+    test("never runs the book's own scripts", async () => {
+        const app = await reader.launch()
+        await app.open(chapters)
+        await app.page.waitForTimeout(300)
+        assert.equal(await app.page.evaluate(() => window.bookScriptRan), undefined)
+        await app.close()
+    })
+
     test('→ shows the next Spread and ← the previous one', async () => {
         const app = await reader.launch()
         const first = await app.open(chapters)
@@ -144,7 +152,7 @@ describe('reading an EPUB', () => {
         const saved = states.at(-1)
         await app.close()
 
-        const relaunched = await reader.launch({ [chapters.id]: saved.position })
+        const relaunched = await reader.launch({ positions: { [chapters.id]: saved.position } })
         const restored = await relaunched.open(chapters)
         assert.equal(restored.left, saved.left)
         assert.equal(restored.right, saved.right)
@@ -173,7 +181,7 @@ describe('reading a fixed-layout EPUB', () => {
         const saved = await app.press('ArrowRight')
         await app.close()
 
-        const relaunched = await reader.launch({ [fixedLayout.id]: saved.position })
+        const relaunched = await reader.launch({ positions: { [fixedLayout.id]: saved.position } })
         const restored = await relaunched.open(fixedLayout)
         assert.deepEqual([restored.left, restored.right], ['Page 4', 'Page 5'])
         await relaunched.close()

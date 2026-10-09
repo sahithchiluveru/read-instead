@@ -1,3 +1,4 @@
+import { closeAddBooks, isAddBooksOpen, openAddBooks } from './add-books.js'
 import { loadPosition, reportState } from './bridge.js'
 import { PdfReader } from './pdf-reader.js'
 import { EpubReader } from './epub-reader.js'
@@ -110,7 +111,8 @@ const closeBook = () => {
 addEventListener('keydown', onKey)
 home.addEventListener('click', e => {
     const button = e.target.closest('button')
-    if (button) openBook({ ...button.dataset })
+    if (button?.id === 'add-books') openAddBooks()
+    else if (button) openBook({ ...button.dataset })
 })
 home.addEventListener('keydown', e => {
     const direction = arrowDirection(e.key)
@@ -126,6 +128,10 @@ window.readInstead = {
     open: openBook,
     // Called by the Android shell on Back; returns true if the reader handled it.
     back() {
+        if (isAddBooksOpen()) {
+            closeAddBooks()
+            return true
+        }
         if (readerScreen.hidden) return false
         closeBook()
         return true

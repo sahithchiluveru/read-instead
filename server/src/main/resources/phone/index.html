@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F4ECD8">
+<title>Read Instead</title>
+<style>
+    :root { --bg: #F4ECD8; --text: #3D2F23; --dim: #7A6650; --accent: #A65A2A; }
+    body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text); font: 17px/1.5 Georgia, serif; }
+    h1 { font-size: 26px; margin: 0 0 4px; }
+    .status { color: var(--dim); margin: 0 0 24px; }
+    .status::before { content: '●'; color: #4C8A4C; margin-right: 6px; }
+    .banner { display: none; padding: 16px; border-radius: 12px; background: #fff6e6; border: 2px solid var(--accent); }
+    .banner h2 { font-size: 18px; margin: 0 0 4px; }
+    .banner p { margin: 0; color: var(--dim); }
+    body.unreachable .banner.unreachable, body.locked-out .banner.locked-out { display: block; }
+    body.unreachable .status, body.locked-out .status { display: none; }
+</style>
+</head>
+<body>
+<h1>Read Instead</h1>
+<p class="status">Connected to your TV</p>
+<section class="banner unreachable" role="alert">
+    <h2>TV app not reachable</h2>
+    <p>Open Read Instead on the TV, on the same Wi-Fi as this phone. This page reconnects by itself.</p>
+</section>
+<section class="banner locked-out" role="alert">
+    <h2>Disconnected</h2>
+    <p>The TV's key was reset. Scan the QR code on the TV's Add books screen to connect again.</p>
+</section>
+<script>
+    // The TV app only serves this page while it's open, so keep checking it's still there.
+    const check = async () => {
+        let state = ''
+        try {
+            const response = await fetch('/api/ping', { cache: 'no-store' })
+            if (response.status === 401) state = 'locked-out'
+            else if (!response.ok) state = 'unreachable'
+        } catch {
+            state = 'unreachable'
+        }
+        document.body.className = state
+    }
+    setInterval(check, 5000)
+    addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check())
+    addEventListener('online', check)
+</script>
+</body>
+</html>

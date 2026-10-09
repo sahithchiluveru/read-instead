@@ -1,4 +1,5 @@
 import '../vendor/foliate-js/view.js'
+import { blockBookScripts } from './epub-scripts.js'
 import { rangeText, splitAtColumn } from './epub-text.js'
 
 // Two-page EPUB reader on top of foliate-js. Each chapter is laid out on its own,
@@ -27,6 +28,7 @@ export class EpubReader {
         this.#view = view
         this.#stage.replaceChildren(view)
         await view.open(url)
+        blockBookScripts(view.book)
         const paginator = view.renderer
         paginator.setAttribute('flow', 'paginated')
         paginator.setAttribute('max-column-count', '2')

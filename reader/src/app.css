@@ -7,6 +7,9 @@
     --accent: #A65A2A;
     color-scheme: light;
 }
+[hidden] {
+    display: none !important;
+}
 html, body {
     margin: 0;
     height: 100%;
@@ -53,6 +56,49 @@ html, body {
     outline: none;
     border-color: var(--accent);
     transform: scale(1.05);
+}
+#add-books-screen {
+    height: 100%;
+    box-sizing: border-box;
+    padding: 44px 48px 27px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+#add-books-screen h1 {
+    margin: 0 0 16px;
+    font-size: 28px;
+}
+#add-books-screen .qr svg {
+    display: block;
+    width: 260px;
+    height: 260px;
+    padding: 12px;
+    background: #FFFFFF;
+    border-radius: 12px;
+}
+#add-books-screen .hint {
+    margin: 16px 0 4px;
+    font-size: 20px;
+}
+#add-books-screen .address {
+    margin: 0 0 20px;
+    color: var(--dim);
+    font: 18px system-ui, sans-serif;
+}
+#reset-key {
+    padding: 6px 18px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--dim);
+    font: 14px system-ui, sans-serif;
+}
+#reset-key:focus {
+    outline: none;
+    border-color: var(--accent);
+    color: var(--text);
 }
 #stage {
     position: absolute;

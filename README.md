@@ -5,6 +5,7 @@ A two-page e-reader for a Google TV (built for a Sony Bravia 3), so the TV gets 
 ## Layout
 
 - `app/`: Android TV shell (Kotlin). A single fullscreen WebView that loads the web reader from the APK's assets.
+- `server/`: the Phone API (Kotlin, [Ktor](https://ktor.io/)). The TV app runs it on port 8765 while it's in the foreground, and the phone opens the Phone Page from the QR code on the TV's Add books screen. It uses no Android APIs, so `./gradlew :server:test` runs its tests over real HTTP on any JVM. An open Phone Page notices when the TV app goes away and shows "TV app not reachable"; opening the bookmark while the app is closed shows Chrome's own connection error instead, since a plain-HTTP LAN page can't be cached for offline use.
 - `reader/`: the web reader. [foliate-js](https://github.com/johnfactotum/foliate-js) renders EPUBs and [pdf.js](https://mozilla.github.io/pdf.js/) renders PDFs. `npm run build` assembles `reader/dist`, and the Gradle build bundles it into the APK as `assets/reader`.
 - `reader/fixtures/`: bundled public-domain sample books from Project Gutenberg. Moby-Dick was printed to a 530-page A5 PDF.
 - `docs/research/`: research notes behind the layout and page-spread decisions.
@@ -17,14 +18,14 @@ Windows PowerShell:
 
 ```powershell
 cd reader; npm ci; npx playwright install chromium-headless-shell; npm test; cd ..
-.\gradlew.bat assembleDebug    # → app\build\outputs\apk\debug\app-debug.apk
+.\gradlew.bat :server:test assembleDebug    # → app\build\outputs\apk\debug\app-debug.apk
 ```
 
 macOS / Linux / Git Bash:
 
 ```sh
 cd reader && npm ci && npx playwright install chromium-headless-shell && npm test && cd ..
-./gradlew assembleDebug
+./gradlew :server:test assembleDebug
 ```
 
 `npm test` includes the Reader-seam tests, which drive the reader in headless Chromium (the engine behind the TV's WebView) with the remote's keys; the Playwright step downloads that browser once.

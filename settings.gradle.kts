@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "read-instead"
-include(":app")
+include(":app", ":server")

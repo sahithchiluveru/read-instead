@@ -72,7 +72,10 @@ export const chaptersEpub = () => {
             spine: '<itemref idref="ch1"/><itemref idref="ch2"/><itemref idref="ch3"/>',
         }),
         'nav.xhtml': nav([['ch1.xhtml', 'Chapter One'], ['ch2.xhtml', 'Chapter Two'], ['ch3.xhtml', 'Chapter Three']]),
-        'ch1.xhtml': xhtml('Chapter One', '<h1>Chapter One</h1>\n<p>One-1 A short opening chapter.</p>'),
+        // Books are untrusted: their scripts must never run (they could reach the native bridges).
+        'ch1.xhtml': xhtml('Chapter One', '<h1>Chapter One</h1>\n<p>One-1 A short opening chapter.</p>' +
+            '<script>window.top.bookScriptRan = "inline"</script>' +
+            `<img src="missing.png" alt="" onerror="window.top.bookScriptRan = 'handler'"/>`),
         'ch2.xhtml': xhtml('Chapter Two', chapterTwo),
         'ch3.xhtml': xhtml('Chapter Three', ['<h1>Chapter Three</h1>',
             ...Array.from({ length: 3 }, (_, i) => paragraph(`Three-${i + 1}`))].join('\n')),
